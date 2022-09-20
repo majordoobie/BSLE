@@ -2,7 +2,21 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import Optional
+from enum import Enum, auto
+
+
+class ActionType(Enum):
+    SHELL = 0
+    LS = 2
+    MKDIR = 2
+    DELETE = 2
+    PUT = 3
+    L_LS = 1
+    L_DELETE = 1
+    L_MKDIR = 1
+    CREATE_USER = 0
+    DELETE_USER = 0
 
 
 class ClientAction:
@@ -13,6 +27,7 @@ class ClientAction:
         self.username = username
         self.src = src
         self.dst = dst
+        self.action: [ActionType] = None
         self._parse_kwargs(kwargs)
 
     def _parse_kwargs(self, kwargs):
@@ -20,8 +35,31 @@ class ClientAction:
         for key, value in kwargs.items():
             if value:
                 if action is not None:
-                    raise ValueError
+                    raise ValueError("[!] Only one command flag may be set")
                 action = key
+
+        if action is None:
+            raise ValueError("[!] No command flag set")
+
+        for name, member in ActionType.__members__.items():
+            if name == action.upper():
+                self.action: ActionType = member
+
+        if self.action.value == 1:
+            if self.src is None:
+                raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
+                                 f" requires \"--src\" argument")
+
+        if self.action.value == 2:
+            if self.dst is None:
+                raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
+                                 f" requires \"--dst\" argument")
+
+        if self.action.value == 3:
+            if self.dst is None or self.src is None:
+                raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
+                                 f" requires \"--src\" and \"--dst\" argument")
+
 
 
 def _local_path(path: str) -> Path:
@@ -32,7 +70,6 @@ def _local_path(path: str) -> Path:
             return path
         raise argparse.ArgumentTypeError(f"f[!] File \"{path}\" is not a file")
     raise argparse.ArgumentTypeError(f"[!] File \"{path}\" does not exist")
-
 
 
 def get_args(args: list[str]) -> ClientAction:
@@ -136,7 +173,6 @@ def get_args(args: list[str]) -> ClientAction:
     )
 
     try:
-        ClientAction(**vars(parser.parse_args(args)))
-    except ValueError:
-        parser.error("[!] Only one command flag may be set")
-    # return ClientAction.parse_namespace(parser.parse_args(args))
+        return ClientAction(**vars(parser.parse_args(args)))
+    except ValueError as error:
+        parser.error(error)

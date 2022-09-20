@@ -3,12 +3,13 @@ import sys
 
 
 def main() -> None:
+    args = None
     try:
         args = get_args(sys.argv[1:])
-        print(args.host)
     except Exception as error:
-        print("hi")
-        print(error)
+        exit(error)
+
+    print(args.action)
 
 
 if __name__ == "__main__":
