@@ -49,7 +49,7 @@ class UserPerm(Enum):
 
 class ClientAction:
     def __init__(self, host: str, port: int, username: str, src: Optional[Path],
-                 dst: Optional[Path], perm: Optional[UserPerm], **kwargs):
+                 dst: Optional[str], perm: Optional[UserPerm], **kwargs):
         """
         Create a "dataclass" containing the configuration and action required
         to communicate with the server.
@@ -185,7 +185,7 @@ def get_args() -> ClientAction:
         help="Source file to reference"
     )
     parser.add_argument(
-        "--dst", dest="dst", type=Path, metavar="[DST]",
+        "--dst", dest="dst", type=str, metavar="[DST]",
         help="Destination file to reference"
     )
 
