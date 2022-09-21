@@ -9,16 +9,16 @@ target_link_libraries(
 )
 
 add_executable(
-        gtest_server_hash
-        gtest_server_hash.cpp
+        gtest_server_crypto
+        gtest_server_crypto.cpp
 )
 
 target_link_libraries(
-        gtest_server_hash
+        gtest_server_crypto
         PUBLIC
-        server_hash
+        server_crypto
 )
 
 
-GTest_add_target(gtest_server_hash)
+GTest_add_target(gtest_server_crypto)
 GTest_add_target(gtest_server_args)
