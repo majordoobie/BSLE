@@ -7,7 +7,7 @@
 DEBUG_STATIC void print_b_array(byte_array_t * array);
 DEBUG_STATIC byte_array_t * hex_char_to_byte_array(const char *hash_str, size_t hash_size);
 
-byte_array_t * hash_pass(char *input, size_t length)
+byte_array_t * hash_pass(const char *input, size_t length)
 {
     unsigned char md[SHA256_DIGEST_LENGTH];
     unsigned char * hash = SHA256((const unsigned char *)input, length, (unsigned char *)&md);
@@ -16,12 +16,6 @@ byte_array_t * hash_pass(char *input, size_t length)
         fprintf(stderr, "[!] Unknown issue with SHA256\n");
         return NULL;
     }
-
-    for(int i = 0; i < SHA256_DIGEST_LENGTH; i++)
-    {
-        printf("%02x", hash[i]);
-    }
-    printf("\n");
 
     uint8_t * byte_array = (uint8_t *)calloc(SHA256_DIGEST_LENGTH, sizeof(uint8_t));
     if (UV_INVALID_ALLOC == verify_alloc(byte_array))

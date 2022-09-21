@@ -35,7 +35,7 @@ void free_args(args_t ** args_p);
 args_t * parse_args(int argc, char ** argv);
 
 
-byte_array_t * hash_pass(char *input, size_t length);
+byte_array_t * hash_pass(const char *input, size_t length);
 void free_b_array(byte_array_t ** array);
 
 
