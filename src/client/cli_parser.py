@@ -17,15 +17,15 @@ class ActionType(Enum):
     4 - Depends on --perm
     """
     SHELL = 0
+    DELETE_USER = 0
+    L_LS = 1
+    L_DELETE = 1
+    L_MKDIR = 1
     LS = 2
     MKDIR = 2
     DELETE = 2
     PUT = 3
-    L_LS = 1
-    L_DELETE = 1
-    L_MKDIR = 1
     CREATE_USER = 4
-    DELETE_USER = 0
 
 
 class UserPerm(Enum):

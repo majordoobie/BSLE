@@ -1,20 +1,61 @@
 import unittest
-import sys
 from src.client import cli_parser
-import argparse
 
 
 class TestArgParser(unittest.TestCase):
-    # def setUp(self) -> None:
-    #     self.args = ["--server-ip", "127.0.0.1", "--server-port", "3388"]
+    def setUp(self) -> None:
+        self.args = {
+            "host": "127.0.0.1",
+            "port": "3388",
+            "username": "Scooby",
+            "src": None,
+            "dst": None,
+            "perm": None,
+            "shell": False,
+            "ls": False,
+            "mkdir": False,
+            "delete": False,
+            "put": False,
+            "l_ls": False,
+            "l_mkdir": False,
+            "create_user": False,
+            "delete_user": False
+        }
+
+    def _test_valid(self):
+        obj = cli_parser.ClientAction(**self.args)
+        self.assertIsInstance(obj, cli_parser.ClientAction)
 
     def test_no_options(self):
-        self.assertEqual(1, 1)
+        with self.assertRaises(ValueError):
+            cli_parser.ClientAction(**self.args)
 
-        print("hi")
-        cli_parser.get_args(["--server-ip", "127.0.0.1", "--server-port", "3388", "--put", "shit"])
-        # with self.assertRaises(argparse.ArgumentError):
-        #     cli_parser.get_args(self.args)
+    def test_multi_actions(self):
+        self.args["shell"] = True
+        self.args["put"] = True
+
+        with self.assertRaises(ValueError):
+            cli_parser.ClientAction(**self.args)
+
+    def test_zero_dependency_actions(self):
+        self.args["shell"] = True
+        self._test_valid()
+
+        self.args["shell"] = False
+        self.args["delete_user"] = True
+        self._test_valid()
+
+    def test_create_user(self):
+        self.args["create_user"] = True
+
+        # Error because missing --perm
+        with self.assertRaises(ValueError):
+            cli_parser.ClientAction(**self.args)
+
+        self.args["perm"] = cli_parser.UserPerm["READ"]
+        self._test_valid()
+
+
 
 
 if __name__ == '__main__':
