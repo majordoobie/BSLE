@@ -1,0 +1,10 @@
+add_executable(
+        gtest_server_args
+        gtest_server_args.cpp
+)
+target_link_libraries(
+        gtest_server_args
+        PUBLIC
+        server_backend
+)
+GTest_add_target(gtest_server_args)
