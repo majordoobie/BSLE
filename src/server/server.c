@@ -1,5 +1,15 @@
-//
-// Created by Jay Galindez on 9/21/22.
-//
+#include <stdio.h>
 
-#include "../../include/server.h"
+#include <server.h>
+
+int main(int argc, char ** argv)
+{
+    args_t * args = parse_args(argc, argv);
+    if (NULL == args)
+    {
+        return 0;
+    }
+
+    printf("got the args\n");
+    free_args(&args);
+}

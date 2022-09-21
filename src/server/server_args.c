@@ -6,11 +6,11 @@
 #include <server.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdbool.h>
 
 DEBUG_STATIC uint32_t get_port(char * port);
+DEBUG_STATIC uint32_t get_timeout(char * timeout);
 static uint8_t str_to_long(char * str_num, long int * int_val);
-static uint32_t get_timeout(char * timeout);
-
 char * get_home_dir(char * home_dir);
 static void print_usage(void);
 /*!
@@ -28,6 +28,19 @@ void free_args(args_t ** args_p)
     {
         return;
     }
+
+    if (NULL != args->home_directory)
+    {
+        free(args->home_directory);
+    }
+
+    // NULL out values
+    *args = (args_t){
+        .home_directory = NULL,
+        .timeout        = 0,
+        .port           = 0
+    };
+
     free(args);
     *args_p = NULL;
 }
@@ -40,6 +53,14 @@ void free_args(args_t ** args_p)
  */
 args_t * parse_args(int argc, char ** argv)
 {
+    // If not arguments are provided return NULL
+    if (1 == argc)
+    {
+        fprintf(stderr, "[!] Must at least provide the home "
+                        "directory to serve\n");
+        return NULL;
+    }
+
     args_t * args = (args_t *)malloc(sizeof(args_t));
     if (UV_INVALID_ALLOC == verify_alloc(args))
     {
@@ -51,39 +72,53 @@ args_t * parse_args(int argc, char ** argv)
         .home_directory = NULL
     };
 
-    // If no additional arguments have been specified, return the default;
-    if (1 == argc)
-    {
-        return args;
-    }
-
 
     opterr = 0;
     int c = 0;
+
+    // Flags indicating if the argument was provided
+    bool port = false;
+    bool timeout = false;
+    bool home_dir = false;
 
     while ((c = getopt(argc, argv, "p:t:d:h")) != -1)
         switch (c)
         {
             case 'p':
+                if (port)
+                {
+                    goto duplicate_args;
+                }
                 args->port = get_port(optarg);
                 if (0 == args->port)
                 {
                     goto cleanup;
                 }
+                port = true;
                 break;
             case 't':
+                if (timeout)
+                {
+                    goto duplicate_args;
+                }
                 args->timeout = get_timeout(optarg);
                 if (0 == args->timeout)
                 {
                     goto cleanup;
                 }
+                timeout = true;
                 break;
             case 'd':
+                if (home_dir)
+                {
+                    goto duplicate_args;
+                }
                 args->home_directory = get_home_dir(optarg);
                 if (NULL == args->home_directory)
                 {
                     goto cleanup;
                 }
+                home_dir = true;
                 break;
             case 'h':
                 print_usage();
@@ -114,8 +149,17 @@ args_t * parse_args(int argc, char ** argv)
     {
         goto cleanup;
     }
-    
+
+    // If the home dir was not provided, error out
+    if (NULL == args->home_directory)
+    {
+        fprintf(stderr, "[!] -d argument is mandatory\n");
+        goto cleanup;
+    }
     return args;
+
+duplicate_args:
+    fprintf(stderr, "[!] Duplicate arguments provided\n");
 cleanup:
     free_args(&args);
     return NULL;
@@ -132,9 +176,9 @@ static void print_usage(void)
            "\n\n"
            "options:\n"
            "\t-t\tSession timeout in seconds (default: 10s)\n"
+           "\t-p\tPort number to listen on (default: 31337)\n"
            "\t-d\tHome directory of the server. Path must have read and write "
-           "permissions.\n"
-           "\t-p\tPort number to listen on (default: 31337)");
+           "permissions.\n");
 }
 
 /*!
@@ -147,9 +191,9 @@ static void print_usage(void)
 char * get_home_dir(char * home_dir)
 {
     struct stat stat_buff;
-    if (-1 != stat(home_dir, &stat_buff))
+    if (-1 == stat(home_dir, &stat_buff))
     {
-        perror("home directory:");
+        perror("home directory");
         return NULL;
     }
 
@@ -162,10 +206,18 @@ char * get_home_dir(char * home_dir)
     }
 
     // Check that we have at least read and write access to the directory
-    if (!(stat_buff.st_mode & R_OK) || !(stat_buff.st_mode & W_OK))
+    else if (!(stat_buff.st_mode & R_OK) || !(stat_buff.st_mode & W_OK))
     {
         fprintf(stderr, "[!] Home directory must have READ "
                         "and WRITE permissions\n");
+        return NULL;
+    }
+
+    else if (stat_buff.st_mode & X_OK)
+    {
+        fprintf(stderr, "[!] Directory must not have execution "
+                        "rights\n");
+        return NULL;
     }
 
     // Allocate the memory for the path and return the pointer to the path
@@ -182,7 +234,7 @@ char * get_home_dir(char * home_dir)
  * @param timeout Timeout parameter to convert
  * @return 0 if failure or a uint32_t integer
  */
-static uint32_t get_timeout(char * timeout)
+DEBUG_STATIC uint32_t get_timeout(char * timeout)
 {
     long int converted_timeout = 0;
     int result = str_to_long(timeout, &converted_timeout);

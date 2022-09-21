@@ -4,9 +4,8 @@
 
 extern "C"
 {
-    args_t * parse_args(int argc, char ** argv);
-    void free_args(args_t ** args);
     uint32_t get_port(char * port);
+    uint32_t get_timeout(char * timeout);
 }
 
 class ServerTestValidPorts : public ::testing::TestWithParam<std::tuple<std::string, bool>>{};
@@ -37,6 +36,33 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple("0", true)
         ));
 
+class ServerTestValidTimeouts : public ::testing::TestWithParam<std::tuple<std::string, bool>>{};
+
+TEST_P(ServerTestValidTimeouts, TestValidTimeouts)
+{
+    auto [port_str, expect_failure] = GetParam();
+
+    uint32_t timeout = get_timeout((char *)port_str.c_str());
+    if (expect_failure)
+    {
+        EXPECT_EQ(timeout, 0);
+    }
+    else
+    {
+        EXPECT_TRUE(timeout >= 0 && timeout <= UINT32_MAX);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TimeoutTest,
+    ServerTestValidTimeouts,
+    ::testing::Values(
+        std::make_tuple("1", false),
+        std::make_tuple("-1", true),
+        std::make_tuple("4294967296", true),
+        std::make_tuple("65536", false),
+        std::make_tuple("0", true)
+    ));
 
 class ServerCmdTester : public ::testing::TestWithParam<std::tuple<std::vector<std::string>, bool>>{};
 
@@ -49,7 +75,7 @@ TEST_P(ServerCmdTester, TestingServerArguments)
     auto [str_vector, expect_failure] = GetParam();
     int arg_count = (int)str_vector.size();
 
-    // Turn the string vector into a array of char array
+    // Turn the string vector into an array of char array
     char ** argv = new char * [str_vector.size()];
     for(size_t i = 0; i < str_vector.size(); i++)
     {
@@ -75,32 +101,32 @@ TEST_P(ServerCmdTester, TestingServerArguments)
         delete [] argv[i];
     }
     delete [] argv;
-    free_args(args);
+    free_args(&args);
 }
 
 INSTANTIATE_TEST_SUITE_P(
     AdditionTests,
     ServerCmdTester,
     ::testing::Values(
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "31337"}, false),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-h"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "1"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "65535"}, false),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "65536"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "0"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "4000", "-t", "8"}, false),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "4000", "-t", "256"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "4000", "-t", "0"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-t", "8"}, false),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-t", "256"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-t", "0"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-t", "0", "extra_arg"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "4000", "-t", "8", "extra_arg"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "4000", "-t", "8", "-t", "9000"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-p"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "extra_arg"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-w"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__, "-w", "10", "-p", "10"}, true),
-        std::make_tuple(std::vector<std::string>{__FILE__}, false)
+        std::make_tuple(std::vector<std::string>{__FILE__, "-p", "31337"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-h"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p", "1"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p", "65535"}, false),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p", "65536"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p", "0"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p", "4000", "-t", "8"}, false),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p", "4000", "-t", "0"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p", "4000", "-t", "-1"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-t", "8"}, false),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-t", "-8"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-t", "0"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-t", "1", "extra_arg"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p", "4000", "-t", "8", "extra_arg"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p", "4000", "-t", "8", "-t", "9000"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-p"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "extra_arg"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-w"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__, "-d", "/tmp", "-w", "10", "-p", "10"}, true),
+        std::make_tuple(std::vector<std::string>{__FILE__}, true)
     ));
 
