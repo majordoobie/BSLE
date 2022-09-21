@@ -162,12 +162,10 @@ def get_args() -> ClientAction:
 
     parser.add_argument(
         "-i", "--server-ip", dest="host", default="127.0.0.1", metavar="[HOST]",
-        required=True,
         help="Specify the address of the server. (Default: %(default)s)"
     )
     parser.add_argument(
         "-p", "--server-port", dest="port", default=31337, metavar="[PORT]",
-        required=True,
         help="Specify the port to connect to. (Default: %(default)s)"
     )
     parser.add_argument(
