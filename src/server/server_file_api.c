@@ -4,6 +4,39 @@
 
 #include <server.h>
 
+DEBUG_STATIC char * join_paths(const char * root, size_t root_length, const char * child, size_t child_length);
+DEBUG_STATIC FILE * get_file(const char * home_dir, size_t home_length, const char * file, const char * read_mode);
+
+FILE * s_open_file(const char * home_dir,
+                   const char * file_path,
+                   const char * read_mode)
+{
+    size_t home_dir_len = strlen(home_dir);
+    size_t file_path_len = strlen(file_path);
+    if ((home_dir_len + file_path_len + 2) > PATH_MAX)
+    {
+        goto ret_null;
+    }
+
+    char * join_path = join_paths(home_dir, home_dir_len, file_path, file_path_len);
+    if (NULL == join_path)
+    {
+        goto ret_null;
+    }
+
+    FILE * file = get_file(home_dir, home_dir_len, file_path, read_mode);
+    if (NULL == file)
+    {
+        goto cleanup;
+    }
+    return file;
+
+cleanup:
+    free(join_path);
+ret_null:
+    return NULL;
+}
+
 /*!
  * @brief Verify if the file path provided resolves inside the home directory
  * path. If it does not, return NULL. Otherwise, attempt to open the file
@@ -15,7 +48,7 @@
  * @param read_mode Mode to open the file path
  * @return FILE object if successful; otherwise NULL
  */
-FILE * s_get_file(const char * home_dir, size_t home_length, const char * file, const char * read_mode)
+DEBUG_STATIC FILE * get_file(const char * home_dir, size_t home_length, const char * file, const char * read_mode)
 {
     if ((NULL == home_dir) || (NULL == file))
     {
@@ -51,7 +84,6 @@ cleanup:
     free(abs_path);
 ret_null:
     return NULL;
-
 }
 
 /*!
@@ -64,7 +96,7 @@ ret_null:
  * @param child_length Length of child path
  * @return Pointer to the resolved path or NULL if failure
  */
-char * s_join_paths(char * root, size_t root_length, char * child, size_t child_length)
+DEBUG_STATIC char * join_paths(const char * root, size_t root_length, const char * child, size_t child_length)
 {
     if ((NULL == root) || (NULL == child))
     {

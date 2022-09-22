@@ -8,14 +8,23 @@
 DEBUG_STATIC void print_b_array(hash_t * array);
 DEBUG_STATIC hash_t * hex_char_to_byte_array(const char *hash_str, size_t hash_size);
 
-//static const char * DB_PATH = ".cape";
-//static const char * DB_NAME = ".cape.db";
-//static const char * DB_HASH = ".cape.hash";
-//static const char * DEFAULT_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
+static const char * DB_NAME = ".cape/.cape.db";
+static const char * DB_HASH = ".cape/.cape.hash";
+static const char * DEFAULT_USER = "admin";
+static const char * DEFAULT_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
 
 void hash_init_db(char * directory, size_t dir_length)
 {
+    FILE * hash_file = s_open_file(directory, DB_HASH, "r");
+    if (NULL == hash_file)
+    {
 
+    }
+
+    if (NULL != hash_file)
+    {
+        fclose(hash_file);
+    }
 }
 
 /*!

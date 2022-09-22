@@ -37,8 +37,9 @@ typedef struct
 void free_args(args_t ** args_p);
 args_t * parse_args(int argc, char ** argv);
 
-char * s_join_paths(char * root, size_t root_length, char * child, size_t child_length);
-FILE * s_get_file(const char * home_dir, size_t home_length, const char * file, const char * read_mode);
+FILE * s_open_file(const char * home_dir,
+                   const char * file_path,
+                   const char * read_mode)
 
 hash_t * hash_pass(const unsigned char *input, size_t length);
 void hash_init_db(char *directory, size_t dir_length);
