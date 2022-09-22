@@ -69,15 +69,15 @@ args_t * parse_args(int argc, char ** argv)
     int c = 0;
 
     // Flags indicating if the argument was provided
-    bool port = false;
-    bool timeout = false;
-    bool home_dir = false;
+    bool b_port = false;
+    bool b_timeout = false;
+    bool b_home_dir = false;
 
     while ((c = getopt(argc, argv, "p:t:d:h")) != -1)
         switch (c)
         {
             case 'p':
-                if (port)
+                if (b_port)
                 {
                     goto duplicate_args;
                 }
@@ -86,10 +86,10 @@ args_t * parse_args(int argc, char ** argv)
                 {
                     goto cleanup;
                 }
-                port = true;
+                b_port = true;
                 break;
             case 't':
-                if (timeout)
+                if (b_timeout)
                 {
                     goto duplicate_args;
                 }
@@ -98,10 +98,10 @@ args_t * parse_args(int argc, char ** argv)
                 {
                     goto cleanup;
                 }
-                timeout = true;
+                b_timeout = true;
                 break;
             case 'd':
-                if (home_dir)
+                if (b_home_dir)
                 {
                     goto duplicate_args;
                 }
@@ -110,7 +110,7 @@ args_t * parse_args(int argc, char ** argv)
                 {
                     goto cleanup;
                 }
-                home_dir = true;
+                b_home_dir = true;
                 break;
             case 'h':
                 print_usage();
@@ -202,13 +202,6 @@ char * get_home_dir(char * home_dir)
     {
         fprintf(stderr, "[!] Home directory must have READ "
                         "and WRITE permissions\n");
-        return NULL;
-    }
-
-    else if (stat_buff.st_mode & X_OK)
-    {
-        fprintf(stderr, "[!] Directory must not have execution "
-                        "rights\n");
         return NULL;
     }
 

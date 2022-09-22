@@ -71,7 +71,6 @@ INSTANTIATE_TEST_SUITE_P(
     ServerFileApiTest,
     ::testing::Values(
         std::make_tuple("/tmp/dir", "somefile.txt", "/tmp/dir/somefile.txt", true, true),
-        std::make_tuple("/tmp/dir", "somefile.txt", "/tmp/dir/somefile.txt", true, true),
         std::make_tuple("/tmp/dir/", "/somefile.txt", "/tmp/dir/somefile.txt", true, true),
         std::make_tuple("/tmp/dir/../dir/", "../dir/somefile.txt", "/tmp/dir/somefile.txt", true, false),
         std::make_tuple("/tmp/dir/", "../otherfile.txt", "/tmp/otherfile.txt", true, false),
