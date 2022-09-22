@@ -221,7 +221,7 @@ char * get_home_dir(char * home_dir)
     }
 
     // Allocate the memory for the path and return the pointer to the path
-    char * path = strdup(home_dir);
+    char * path = realpath(home_dir, NULL);
     if (UV_INVALID_ALLOC == verify_alloc(path))
     {
         return NULL;

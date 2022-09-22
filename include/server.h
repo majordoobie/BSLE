@@ -36,8 +36,10 @@ typedef struct hash_t
 void free_args(args_t ** args_p);
 args_t * parse_args(int argc, char ** argv);
 
+char * s_join_paths(char * root, size_t root_length, char * child, size_t child_length);
 
-hash_t * hash_pass(const unsigned char * input, size_t length);
+hash_t * hash_pass(const unsigned char *input, size_t length);
+void hash_init_db(char *directory, size_t dir_length);
 bool hash_pass_match(hash_t * hash, const char *input, size_t length);
 void hash_destroy(hash_t ** hash);
 
