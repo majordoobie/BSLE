@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include <server.h>
+#include <server_crypto.h>
 
 extern "C"
 {
-    hash_t * hex_char_to_byte_array(const char *hash_str, size_t hash_size);
-    void print_b_array(hash_t * array);
+    hash_t * hex_char_to_byte_array(const char *p_hash_str, size_t hash_size);
+    void print_b_array(hash_t * p_hash);
 }
 
 

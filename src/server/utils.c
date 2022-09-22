@@ -2,9 +2,9 @@
 #include <stdio.h>
 
 
-util_verify_t verify_alloc(void * ptr)
+util_verify_t verify_alloc(void * p_ptr)
 {
-    if (NULL == ptr)
+    if (NULL == p_ptr)
     {
         debug_print("%s", "[!] Unable to allocate memory");
         return UV_INVALID_ALLOC;

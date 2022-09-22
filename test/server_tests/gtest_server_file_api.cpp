@@ -1,15 +1,15 @@
 #include <gtest/gtest.h>
-#include <server.h>
+#include <server_file_api.h>
 
 extern "C"
 {
-FILE * get_file(const char * home_dir,
+FILE * get_file(const char * p_home_dir,
                 size_t home_length,
-                const char * file,
-                const char * read_mode);
-char * join_paths(const char * root,
+                const char * p_file,
+                const char * p_read_mode);
+char * join_paths(const char * p_root,
                   size_t root_length,
-                  const char * child,
+                  const char * p_child,
                   size_t child_length);
 }
 

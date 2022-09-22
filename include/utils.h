@@ -46,7 +46,7 @@ typedef enum util_verify_t
  * check allocations of memory. A stderr message is printed and a util_verify_t
  * is returned
  */
-util_verify_t verify_alloc(void * ptr);
+util_verify_t verify_alloc(void * p_ptr);
 
 #ifdef __cplusplus
 }

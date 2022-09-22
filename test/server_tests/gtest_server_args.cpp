@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
-#include <server.h>
 #include <arpa/inet.h>
+
+#include <server_args.h>
+#include <server_ctrl.h>
 
 extern "C"
 {

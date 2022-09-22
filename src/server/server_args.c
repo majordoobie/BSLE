@@ -1,12 +1,4 @@
-#include <unistd.h>
-#include <ctype.h>
-#include <errno.h>
-#include <stdlib.h>
-
-#include <server.h>
-#include <sys/stat.h>
-#include <string.h>
-#include <stdbool.h>
+#include <server_args.h>
 
 DEBUG_STATIC uint32_t get_port(char * port);
 DEBUG_STATIC uint32_t get_timeout(char * timeout);
@@ -15,34 +7,34 @@ char * get_home_dir(char * home_dir);
 static void print_usage(void);
 /*!
  * @brief Free the args object
- * @param args_p Double pointer to the args object
+ * @param pp_args Double pointer to the args object
  */
-void free_args(args_t ** args_p)
+void free_args(args_t ** pp_args)
 {
-    if (NULL == args_p)
+    if (NULL == pp_args)
     {
         return;
     }
-    args_t * args = *args_p;
-    if (NULL == args)
+    args_t * p_args = *pp_args;
+    if (NULL == p_args)
     {
         return;
     }
 
-    if (NULL != args->home_directory)
+    if (NULL != p_args->p_home_directory)
     {
-        free(args->home_directory);
+        free(p_args->p_home_directory);
     }
 
     // NULL out values
-    *args = (args_t){
-        .home_directory = NULL,
-        .timeout        = 0,
-        .port           = 0
+    *p_args = (args_t){
+        .p_home_directory   = NULL,
+        .timeout            = 0,
+        .port               = 0
     };
 
-    free(args);
-    *args_p = NULL;
+    free(p_args);
+    *pp_args = NULL;
 }
 
 /*!
@@ -61,15 +53,15 @@ args_t * parse_args(int argc, char ** argv)
         return NULL;
     }
 
-    args_t * args = (args_t *)malloc(sizeof(args_t));
-    if (UV_INVALID_ALLOC == verify_alloc(args))
+    args_t * p_args = (args_t *)malloc(sizeof(args_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_args))
     {
         return NULL;
     }
-    *args = (args_t){
+    *p_args = (args_t){
         .port           = DEFAULT_PORT,
         .timeout        = DEFAULT_TIMEOUT,
-        .home_directory = NULL
+        .p_home_directory = NULL
     };
 
 
@@ -89,8 +81,8 @@ args_t * parse_args(int argc, char ** argv)
                 {
                     goto duplicate_args;
                 }
-                args->port = get_port(optarg);
-                if (0 == args->port)
+                p_args->port = get_port(optarg);
+                if (0 == p_args->port)
                 {
                     goto cleanup;
                 }
@@ -101,8 +93,8 @@ args_t * parse_args(int argc, char ** argv)
                 {
                     goto duplicate_args;
                 }
-                args->timeout = get_timeout(optarg);
-                if (0 == args->timeout)
+                p_args->timeout = get_timeout(optarg);
+                if (0 == p_args->timeout)
                 {
                     goto cleanup;
                 }
@@ -113,8 +105,8 @@ args_t * parse_args(int argc, char ** argv)
                 {
                     goto duplicate_args;
                 }
-                args->home_directory = get_home_dir(optarg);
-                if (NULL == args->home_directory)
+                p_args->p_home_directory = get_home_dir(optarg);
+                if (NULL == p_args->p_home_directory)
                 {
                     goto cleanup;
                 }
@@ -151,17 +143,17 @@ args_t * parse_args(int argc, char ** argv)
     }
 
     // If the home dir was not provided, error out
-    if (NULL == args->home_directory)
+    if (NULL == p_args->p_home_directory)
     {
         fprintf(stderr, "[!] -d argument is mandatory\n");
         goto cleanup;
     }
-    return args;
+    return p_args;
 
 duplicate_args:
     fprintf(stderr, "[!] Duplicate arguments provided\n");
 cleanup:
-    free_args(&args);
+    free_args(&p_args);
     return NULL;
 }
 static void print_usage(void)
