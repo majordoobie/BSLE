@@ -97,15 +97,3 @@ TEST(TestMatchingFunc, TestMatch)
     EXPECT_TRUE(hash_pass_match(hash, hash_str, strlen(hash_str)));
     hash_destroy(& hash);
 }
-
-TEST(TestFileConcat, TestConcat)
-{
-    const char * base = "/tmp/dir/";
-    const char * child = "../dir/somefile.txt";
-    const char * expect = "/tmp/dir/somefile.txt";
-
-    char * resp = s_join_paths((char *)base, strlen(base), (char *)child, strlen(child));
-    EXPECT_EQ(0, strcmp(expect, resp));
-
-    free(resp);
-}

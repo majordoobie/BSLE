@@ -9,22 +9,12 @@ extern "C" {
  * depending on if the application was compiled in either debug or released mode
  */
 #ifdef NDEBUG
-#define DEBUG_PRINT 0
+#   define DEBUG_PRINT 0
+#   define DEBUG_STATIC static
 #else
-#define DEBUG_PRINT 1
+#   define DEBUG_PRINT 1
+#   define DEBUG_STATIC
 #endif // End of DEBUG_PRINT
-
-
-/*
- * Enable private function to be used publicly when in debug release mode
- * This makes it possible to unit test functions that are normally meant to
- * be private
- */
-#ifdef NDEBUG
-#define DEBUG_STATIC static
-#else
-#define DEBUG_STATIC
-#endif // END of static replacement
 
 #include <stdio.h>
 
