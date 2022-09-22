@@ -5,6 +5,8 @@
 extern "C" {
 #endif //END __cplusplus
 #include <stdint.h>
+#include <stdbool.h>
+
 #include <utils.h>
 typedef enum
 {
@@ -25,18 +27,19 @@ typedef struct args_t
     char * home_directory;
 } args_t;
 
-typedef struct byte_array_t
+typedef struct hash_t
 {
     size_t size;
     uint8_t * array;
-} byte_array_t;
+} hash_t;
 
 void free_args(args_t ** args_p);
 args_t * parse_args(int argc, char ** argv);
 
 
-byte_array_t * hash_pass(const char *input, size_t length);
-void free_b_array(byte_array_t ** array);
+hash_t * hash_pass(const unsigned char * input, size_t length);
+bool hash_pass_match(hash_t * hash, const char *input, size_t length);
+void hash_destroy(hash_t ** hash);
 
 
 #ifdef __cplusplus

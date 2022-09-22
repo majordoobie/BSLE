@@ -3,12 +3,12 @@
 
 extern "C"
 {
-    byte_array_t * hex_char_to_byte_array(const char *hash_str, size_t hash_size);
-    void print_b_array(byte_array_t * array);
+    hash_t * hex_char_to_byte_array(const char *hash_str, size_t hash_size);
+    void print_b_array(hash_t * array);
 }
 
 
- class ServerCryptoHashTest : public ::testing::TestWithParam<std::tuple<std::string, std::string>>{};
+class ServerCryptoHashTest : public ::testing::TestWithParam<std::tuple<std::string, std::string>>{};
 
 /*
  * I took the output of:
@@ -22,10 +22,10 @@ TEST_P(ServerCryptoHashTest, TestValidPorts)
     auto [string_to_hash, sha256_sum_hash] = GetParam();
 
 
-    byte_array_t * pw_hash = hash_pass(string_to_hash.c_str(), string_to_hash.size());
+    hash_t * pw_hash = hash_pass((const unsigned char *)string_to_hash.c_str(), string_to_hash.size());
     EXPECT_NE(nullptr, pw_hash);
 
-    byte_array_t * exp_hash = hex_char_to_byte_array(sha256_sum_hash.c_str(), sha256_sum_hash.size());
+    hash_t * exp_hash = hex_char_to_byte_array(sha256_sum_hash.c_str(), sha256_sum_hash.size());
     EXPECT_NE(nullptr, exp_hash);
 
     EXPECT_EQ(pw_hash->size, exp_hash->size);
@@ -35,8 +35,8 @@ TEST_P(ServerCryptoHashTest, TestValidPorts)
         EXPECT_EQ(pw_hash->array[i], exp_hash->array[i]);
     }
 
-    free_b_array(&pw_hash);
-    free_b_array(&exp_hash);
+    hash_destroy(& pw_hash);
+    hash_destroy(& exp_hash);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -61,5 +61,39 @@ INSTANTIATE_TEST_SUITE_P(
                         "ellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohel"
                         "lohellohellohellohellohello",
                         "bb3a5578b33ddbb427271a274aa0e5c2cc2934a63db71eab87855acfd7a1482c"),
+        std::make_tuple("Number one. Steady hand. One day, Kim Jong Un need new heart. I do operation. But mistake! Kim Jong Un "
+                        "die! SSD very mad! I hide fishing boat, come to America. No English, no food, no money. Darryl give me job. "
+                        "Now I have house, American car and new woman. Darryl save life. Dude I own this NFT. Do you really think you "
+                        "can get away with theft when you’re showing what you stole directly to my face. My lawyers will make an easy "
+                        "job of this case. Prepare to say goodbye to your luscious life and start preparing for the streets. I will "
+                        "ruin you. Noobmaster, hey it’s Thor again. You know, the god of thunder? Listen, buddy, if you don’t log off "
+                        "this game immediately I will fly over to your house, and come down to that basement you’re hiding in and rip "
+                        "off your arms and shove them up your butt! Oh, that’s right, yea just go cry to your father you little weasel."
+                        "Number one. Steady hand. One day, Kim Jong Un need new heart. I do operation. But mistake! Kim Jong Un die! SSD "
+                        "very mad! I hide fishing boat, come to America. No English, no food, no money. Darryl give me job. Now I have house, "
+                        "American car and new woman. Darryl save life. Dude I own this NFT. Do you really think you can get away with theft "
+                        "when you’re showing what you stole directly to my face. My lawyers will make an easy job of this case. Prepare to "
+                        "say goodbye to your luscious life and start preparing for the streets. I will ruin you. Noobmaster, hey it’s Thor "
+                        "again. You know, the god of thunder? Listen, buddy, if you don’t log off this game immediately I will fly over to "
+                        "your house, and come down to that basement you’re hiding in and rip off your arms and shove them up your butt! Oh, "
+                        "that’s right, yea just go cry to your father you little weasel.Number one. Steady hand. One day, Kim Jong Un need "
+                        "new heart. I do operation. But mistake! Kim Jong Un die! SSD very mad! I hide fishing boat, come to America. No "
+                        "English, no food, no money. Darryl give me job. Now I have house, American car and new woman. Darryl save life. "
+                        "Dude I own this NFT. Do you really think you can get away with theft when you’re showing what you stole directly "
+                        "to my face. My lawyers will make an easy job of this case. Prepare to say goodbye to your luscious life and start "
+                        "preparing for the streets. I will ruin you. Noobmaster, hey it’s Thor again. You know, the god of thunder? Listen, "
+                        "buddy, if you don’t log off this game immediately I will fly over to your house, and come down to that basement "
+                        "you’re hiding in and rip off your arms and shove them up your butt! Oh, that’s right, yea just go cry to your father "
+                        "you little weasel.",
+                        "08c9c885c916f68371037a2ee92981b4b30d0b1d5a985393c8fcb255db2646ef"),
         std::make_tuple("password", "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8")
     ));
+
+
+TEST(TestMatchingFunc, TestMatch)
+{
+    const char * hash_str = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
+    hash_t * hash = hash_pass((const unsigned char *)"password", 8);
+    EXPECT_TRUE(hash_pass_match(hash, hash_str, strlen(hash_str)));
+    hash_destroy(& hash);
+}
