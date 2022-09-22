@@ -9,6 +9,7 @@ extern "C" {
 #include <stdbool.h>
 
 #include <utils.h>
+
 typedef enum
 {
     MIN_PORT    = 1024,       // Ports 1024+ are user defined ports
@@ -21,6 +22,13 @@ typedef enum
     DEFAULT_PORT    = 31337,
     DEFAULT_TIMEOUT = 10,
 } args_default_t;
+
+typedef enum
+{
+    READ        = 1,
+    READ_WRITE  = 2,
+    ADMIN       = 3
+} perms_t;
 
 
 

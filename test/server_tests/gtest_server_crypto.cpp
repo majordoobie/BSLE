@@ -22,7 +22,9 @@ TEST_P(ServerCryptoHashTest, TestValidPorts)
     auto [string_to_hash, sha256_sum_hash] = GetParam();
 
 
-    hash_t * pw_hash = hash_pass((const unsigned char *)string_to_hash.c_str(), string_to_hash.size());
+    hash_t * pw_hash =
+        hash_byte_array((uint8_t *)string_to_hash.c_str(),
+                        string_to_hash.size());
     EXPECT_NE(nullptr, pw_hash);
 
     hash_t * exp_hash = hex_char_to_byte_array(sha256_sum_hash.c_str(), sha256_sum_hash.size());
@@ -93,7 +95,14 @@ INSTANTIATE_TEST_SUITE_P(
 TEST(TestMatchingFunc, TestMatch)
 {
     const char * hash_str = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
-    hash_t * hash = hash_pass((const unsigned char *)"password", 8);
+    hash_t * hash = hash_byte_array((uint8_t *)"password", 8);
     EXPECT_TRUE(hash_pass_match(hash, hash_str, strlen(hash_str)));
     hash_destroy(& hash);
+}
+
+TEST(TestInitDB, TestInit)
+{
+    const char * home = "/tmp";
+    int res = hash_init_db((char *)home, strlen(home));
+    EXPECT_EQ(res, 0);
 }

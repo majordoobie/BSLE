@@ -11,7 +11,18 @@ static char * join_paths(const char * p_root, size_t root_length, const char * p
 // Bytes needed to account for the "/" and a "\0"
 #define SLASH_PLUS_NULL 2
 
-// Used when wanting to create something
+/*!
+ * @brief Just like `f_path_resolve`, the function checks to ensure that the
+ * path created is a valid path. The only difference is that this function
+ * checks if the final path joined can possibly be created. This is done
+ * by ensuring that the path follows filename rules and the file that will
+ * be created will exist within the home directory.
+ *
+ * @param p_home_dir Pointer to the home directory path
+ * @param p_child Pointer to the child path to resolve to
+ * @return verified_path_t object or a NULL is returned if the file path
+ * character limit is exceeded, if the file does not exist or if the file exists but outside the home directory.
+ */
 verified_path_t * f_dir_resolve(const char * p_home_dir, const char * p_child)
 {
     if ((NULL == p_home_dir) || (NULL == p_child))
@@ -55,7 +66,7 @@ verified_path_t * f_dir_resolve(const char * p_home_dir, const char * p_child)
     char * child_basename = basename(p_child_cpy);
     // A child_dir of "." is a path with no parent. Therefore, the file path
     // passed in is empty
-    if ('.' == child_basename[0])
+    if ((1 == strlen(child_basename)) && ('.' == child_basename[0]))
     {
         goto cleanup_join;
     }
@@ -187,6 +198,32 @@ void f_destroy_path(verified_path_t ** pp_path)
     }
     free(p_path);
     *pp_path = NULL;
+}
+
+/*!
+ * @brief Simple wrapper for creating a directory using the verified_path_t
+ * object
+ *
+ * @param p_path Pointer to a verified_path_t object
+ * @return file_op_t indicating if the operation failed or succeeded
+ */
+file_op_t f_create_dir(verified_path_t * p_path)
+{
+    if ((NULL == p_path) || (NULL == p_path->p_path))
+    {
+        goto ret_null;
+    }
+
+    int result = mkdir(p_path->p_path, 0777);
+    if (-1 == result)
+    {
+        perror("mkdir");
+        goto ret_null;
+    }
+    return FILE_OP_SUCCESS;
+
+ret_null:
+    return FILE_OP_FAILURE;
 }
 
 /*!
