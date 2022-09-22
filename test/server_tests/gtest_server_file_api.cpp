@@ -3,14 +3,11 @@
 
 extern "C"
 {
-FILE * get_file(const char * p_home_dir,
-                size_t home_length,
-                const char * p_file,
-                const char * p_read_mode);
-char * join_paths(const char * p_root,
-                  size_t root_length,
-                  const char * p_child,
-                  size_t child_length);
+    // Private structure declared again here to access members
+    struct verified_path
+    {
+        char * p_path;
+    };
 }
 
 class ServerFileApiTest : public ::testing::TestWithParam<std::tuple<std::string, std::string, std::string, bool, bool>>{};
@@ -24,46 +21,42 @@ class ServerFileApiTest : public ::testing::TestWithParam<std::tuple<std::string
  */
 TEST_P(ServerFileApiTest, TestFileJoining)
 {
-    auto [parent, child, expected, expect_resolve, expect_find] = GetParam();
+    auto [parent, child, b_expected, b_expect_resolve, expect_find] = GetParam();
 
-    char * joined_path = join_paths(
-        (char *)parent.c_str(),
-        parent.size(),
-        (char *)child.c_str(),
-        child.size()
-    );
+    static int val = 0;
+    val++;
 
+    verified_path_t * p_path = f_path_resolve(parent.c_str(), child.c_str());
 
-    if (expect_resolve)
+    if (b_expect_resolve)
     {
-        ASSERT_NE(nullptr, joined_path) << "\n[!!] Create test files; mkdir /tmp/dir; touch /tmp/dir/somefile.txt; touch /tmp/otherfile.txt";
-        EXPECT_EQ(0, strcmp(expected.c_str(), joined_path));
+        ASSERT_NE(nullptr, p_path) << "\n[!!] Create test files; mkdir /tmp/dir; touch /tmp/dir/somefile.txt; touch /tmp/otherfile.txt";
+        EXPECT_EQ(0, strcmp(b_expected.c_str(), p_path->p_path));
 
-        FILE * file = get_file(parent.c_str(),
-                               parent.size(),
-                               (const char *)joined_path,
-                               "r");
+
+        FILE * h_file = f_open_file(p_path, "r");
 
         if (expect_find)
         {
-            EXPECT_NE(nullptr, file);
+            EXPECT_NE(nullptr, h_file);
         }
         else
         {
-            EXPECT_EQ(nullptr, file);
+            EXPECT_EQ(nullptr, h_file);
         }
-        if (NULL != file)
+        if (NULL != h_file)
         {
-            fclose(file);
+            fclose(h_file);
         }
+        f_destroy_path(&p_path);
     }
     else
     {
-        EXPECT_EQ(nullptr, joined_path);
+        EXPECT_EQ(nullptr, p_path);
     }
 
 
-    free(joined_path);
+    free(p_path);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -72,8 +65,10 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         std::make_tuple("/tmp/dir", "somefile.txt", "/tmp/dir/somefile.txt", true, true),
         std::make_tuple("/tmp/dir/", "/somefile.txt", "/tmp/dir/somefile.txt", true, true),
-        std::make_tuple("/tmp/dir/../dir/", "../dir/somefile.txt", "/tmp/dir/somefile.txt", true, false),
-        std::make_tuple("/tmp/dir/", "../otherfile.txt", "/tmp/otherfile.txt", true, false),
+        std::make_tuple("/tmp/dir", "/somefile.txt", "/tmp/dir/somefile.txt", true, true),
+        std::make_tuple("/tmp/dir/", "somefile.txt", "/tmp/dir/somefile.txt", true, true),
+        std::make_tuple("/tmp/dir/", "../../tmp/dir/somefile.txt", "/tmp/dir/somefile.txt", true, true),
+        std::make_tuple("/tmp/dir/", "../otherfile.txt", "/tmp/otherfile.txt", false, false),
         std::make_tuple("/tmp/dir/", "no_exist.txt", "", false, false),
         std::make_tuple("/tmp/dir", "../dir/somefile.txt", "/tmp/dir/somefile.txt", true, true)
     ));

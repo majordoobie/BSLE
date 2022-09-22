@@ -5,7 +5,7 @@ DEBUG_STATIC hash_t * hex_char_to_byte_array(const char * p_hash_str, size_t has
 
 //static const char * DB_DIR = ".cape";
 //static const char * DB_NAME = ".cape/.cape.db";
-static const char * DB_HASH = ".cape/.cape.hash";
+//static const char * DB_HASH = ".cape/.cape.hash";
 //static const char * DEFAULT_USER = "admin";
 //static const char * DEFAULT_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
 

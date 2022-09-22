@@ -74,9 +74,6 @@ TEST_P(ServerCmdTester, TestingServerArguments)
     // Reset getopt value for testing
     optind = 0;
 
-    static int val = 0;
-    val++;
-
     auto [str_vector, expect_failure] = GetParam();
     int arg_count = (int)str_vector.size();
 
