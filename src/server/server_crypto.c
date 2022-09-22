@@ -1,26 +1,30 @@
 #include <server_crypto.h>
 
-DEBUG_STATIC void print_b_array(hash_t * p_hash);
-DEBUG_STATIC hash_t * hex_char_to_byte_array(const char * p_hash_str, size_t hash_size);
-
 //static const char * DB_DIR = ".cape";
 //static const char * DB_NAME = ".cape/.cape.db";
 //static const char * DB_HASH = ".cape/.cape.hash";
 //static const char * DEFAULT_USER = "admin";
 //static const char * DEFAULT_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
 
-void hash_init_db(char * p_dir_path, size_t dir_length)
-{
-    FILE * h_hash_file = f_open_file(0, "r");
-    if (NULL == h_hash_file)
-    {
-    }
+//static int init_db_dir(char * p_home_dir);
 
-    if (NULL != h_hash_file)
-    {
-        fclose(h_hash_file);
-    }
-}
+DEBUG_STATIC void print_b_array(hash_t * p_hash);
+DEBUG_STATIC hash_t * hex_char_to_byte_array(const char * p_hash_str, size_t hash_size);
+
+//void hash_init_db(char * p_home_dir, size_t dir_length)
+//{
+//    verified_path_t * p_db_dir = f_path_resolve(p_home_dir, DB_DIR);
+//    if (NULL == p_db_dir)
+//    {
+//        int result = init_db_dir(p_home_dir);
+//    }
+//}
+//int init_db_dir(char * p_home_dir)
+//{
+//    int result = mkdir()
+//
+//    return 0;
+//}
 
 /*!
  * @brief Function takes a hash_t object and compares it against a hexadecimal

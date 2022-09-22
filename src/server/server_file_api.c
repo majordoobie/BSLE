@@ -5,10 +5,87 @@ struct verified_path
     char * p_path;
 };
 
-DEBUG_STATIC char * join_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length);
+DEBUG_STATIC char * join_and_resolve_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length);
+static char * join_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length);
 
 // Bytes needed to account for the "/" and a "\0"
 #define SLASH_PLUS_NULL 2
+
+// Used when wanting to create something
+verified_path_t * f_dir_resolve(const char * p_home_dir, const char * p_child)
+{
+    if ((NULL == p_home_dir) || (NULL == p_child))
+    {
+        goto ret_null;
+    }
+
+    // Make a copy of the child path since dirname function modifies the str
+    char * p_child_cpy = strdup(p_child);
+    if (UV_INVALID_ALLOC == verify_alloc(p_child_cpy))
+    {
+        goto ret_null;
+    }
+
+    // Attempt to resolve a path within the home dir using the child paths
+    // dir path
+    char * child_dir =  dirname(p_child_cpy);
+    size_t home_dir_len = strlen(p_home_dir);
+    char * p_join_path = join_and_resolve_paths(p_home_dir,
+                                                home_dir_len,
+                                                child_dir,
+                                                strlen(child_dir));
+    if (NULL == p_join_path)
+    {
+        goto cleanup_cpy;
+    }
+
+    // Now that we know that the dirname of the child path exists within
+    // the home directory, make a new child copy to call the dirbase name
+    // function which modifies the passed in pointer
+    free(p_child_cpy);
+    p_child_cpy = NULL;
+    p_child_cpy = strdup(p_child);
+    if (UV_INVALID_ALLOC == verify_alloc(p_child_cpy))
+    {
+        goto cleanup_join;
+    }
+
+    // With the verified directory path and the file name, join the two paths
+    // together to create a "valid" new file that can exist within the home dir
+    char * child_basename = basename(p_child_cpy);
+    char * p_final_path = join_paths(p_join_path,
+                                     strlen(p_join_path),
+                                     child_basename,
+                                     strlen(child_basename));
+    if (NULL == p_final_path)
+    {
+        goto cleanup_join;
+    }
+
+    // Finally, create the verified_path_t object and set the path to the
+    // verified path that "can" exist
+    verified_path_t * p_path = (verified_path_t *)malloc(sizeof(verified_path_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_path))
+    {
+        goto cleanup_rsvl;
+    }
+
+    p_path->p_path = p_final_path;
+    free(p_child_cpy);
+    return p_path;
+
+cleanup_rsvl:
+    free(p_final_path);
+cleanup_join:
+    free(p_join_path);
+cleanup_cpy:
+    if (NULL != p_child_cpy)
+    {
+        free(p_child_cpy);
+    }
+ret_null:
+    return NULL;
+}
 
 /*!
  * @brief Function verifies that the combination of the joining of the parent
@@ -40,7 +117,8 @@ verified_path_t * f_path_resolve(const char * p_home_dir, const char * p_child)
         goto ret_null;
     }
 
-    char * p_join_path = join_paths(p_home_dir, home_dir_len, p_child, child_len);
+    char * p_join_path =
+        join_and_resolve_paths(p_home_dir, home_dir_len, p_child, child_len);
     if (NULL == p_join_path)
     {
         goto ret_null;
@@ -133,7 +211,47 @@ ret_null:
  * @param child_length Length of p_child path
  * @return Pointer to the resolved path or NULL if failure
  */
-DEBUG_STATIC char * join_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length)
+DEBUG_STATIC char * join_and_resolve_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length)
+{
+    if ((NULL == p_root) || (NULL == p_child))
+    {
+        goto ret_null;
+    }
+
+    char * new_path = join_paths(p_root, root_length, p_child, child_length);
+    if (NULL == new_path)
+    {
+        goto ret_null;
+    }
+
+    char * p_abs_path = realpath(new_path, NULL);
+    if (UV_INVALID_ALLOC == verify_alloc(p_abs_path))
+    {
+        perror("\nrealpath");
+        goto cleanup;
+    }
+
+    free(new_path);
+    return p_abs_path;
+
+cleanup:
+    free(new_path);
+ret_null:
+    return NULL;
+}
+
+/*!
+ * @brief Function handles concatenating two paths together while taking into
+ * account the size of the new string to ensure that it does not exceed the
+ * max path string limit
+ *
+ * @param p_root String of p_root path
+ * @param root_length Length of p_root path
+ * @param p_child String of p_child path
+ * @param child_length Length of p_child path
+ * @return Pointer to the new joined path or NULL if failure
+ */
+static char * join_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length)
 {
     if ((NULL == p_root) || (NULL == p_child))
     {
@@ -161,17 +279,13 @@ DEBUG_STATIC char * join_paths(const char * p_root, size_t root_length, const ch
     }
     strncat(new_path, p_child, child_length);
 
-    char * p_abs_path = realpath(new_path, NULL);
-    if (UV_INVALID_ALLOC == verify_alloc(p_abs_path))
+    char * joined_path = strdup(new_path);
+    if (UV_INVALID_ALLOC == verify_alloc(joined_path))
     {
-        perror("\nrealpath");
-        goto cleanup;
+        goto ret_null;
     }
+    return joined_path;
 
-    return p_abs_path;
-
-cleanup:
-    free(p_abs_path);
 ret_null:
     return NULL;
 }

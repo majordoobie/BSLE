@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <server_file_api.h>
+#include <libgen.h>
 
 extern "C"
 {
@@ -23,8 +24,18 @@ TEST_P(ServerFileApiTest, TestFileJoining)
 {
     auto [parent, child, b_expected, b_expect_resolve, expect_find] = GetParam();
 
-    static int val = 0;
-    val++;
+//    static int val = 0;
+//    if (0 == val)
+//        printf("Orig\t\t\t\t\t\t\t\tDirName\t\t\t\t\t\t\t\tDirBase\n");
+//    val++;
+//
+//    char * first = strdup((char *)child.c_str());
+//    char * second = strdup((char *)child.c_str());
+//
+//    printf("%s\t\t\t\t\t\t\t\t%s\t\t\t\t\t\t\t\t%s\n", child.c_str(), dirname(first), basename(second));
+//    free(first);
+//    free(second);
+//    return;
 
     verified_path_t * p_path = f_path_resolve(parent.c_str(), child.c_str());
 

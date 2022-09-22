@@ -8,6 +8,7 @@ extern "C" {
 #include <string.h>
 #include <linux/limits.h>
 #include <stdbool.h>
+#include <libgen.h>
 
 #include <utils.h>
 

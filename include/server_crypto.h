@@ -8,6 +8,7 @@ extern "C" {
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <sys/stat.h>
 
 #include <server_file_api.h>
 #include <utils.h>
@@ -19,7 +20,7 @@ typedef struct
 } hash_t;
 
 hash_t * hash_pass(const unsigned char * p_input, size_t length);
-void hash_init_db(char * p_dir_path, size_t dir_length);
+void hash_init_db(char * p_home_dir, size_t dir_length);
 bool hash_pass_match(hash_t * p_hash, const char * p_input, size_t length);
 void hash_destroy(hash_t ** pp_hash);
 
