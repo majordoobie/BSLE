@@ -1,32 +1,68 @@
 #include <server_file_api.h>
 
-DEBUG_STATIC char * join_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length);
-DEBUG_STATIC FILE * get_file(const char * p_home_dir, size_t home_length, const char * p_file, const char * p_read_mode);
-
-FILE * s_open_file(const char * p_home_dir,
-                   const char * p_file_path,
-                   const char * p_read_mode)
+struct verified_path
 {
-    size_t home_dir_len = strlen(p_home_dir);
-    size_t file_path_len = strlen(p_file_path);
-    if ((home_dir_len + file_path_len + 2) > PATH_MAX)
+    char * p_path;
+};
+
+DEBUG_STATIC char * join_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length);
+
+// Bytes needed to account for the "/" and a "\0"
+#define SLASH_PLUS_NULL 2
+
+/*!
+ * @brief Function verifies that the combination of the joining of the parent
+ * and child paths do not exceed the path character limit.
+ *
+ * The two paths are then joined together and verified if the path exists.
+ * The resolved path is then checked to see if the path exists within the
+ * home directory of the server.
+ *
+ * @param p_home_dir Pointer to the home directory path
+ * @param p_child Pointer to the child path to resolve to
+ * @return verified_path_t object or a NULL is returned if the file path
+ * character limit is exceeded, if the file does not exist or if the file exists but outside the home directory.
+ */
+verified_path_t * f_path_resolve(const char * p_home_dir, const char * p_child)
+{
+    if ((NULL == p_home_dir) || (NULL == p_child))
     {
         goto ret_null;
     }
 
-    char * p_join_path = join_paths(p_home_dir, home_dir_len, p_file_path, file_path_len);
+    size_t home_dir_len = strlen(p_home_dir);
+    size_t child_len = strlen(p_child);
 
+    if ((home_dir_len + child_len + SLASH_PLUS_NULL) > PATH_MAX)
+    {
+        fprintf(stderr, "[!] Resolve path exceeds the file path "
+                        "character limit\n");
+        goto ret_null;
+    }
+
+    char * p_join_path = join_paths(p_home_dir, home_dir_len, p_child, child_len);
     if (NULL == p_join_path)
     {
         goto ret_null;
     }
 
-    FILE * h_file = get_file(p_home_dir, home_dir_len, p_file_path, p_read_mode);
-    if (NULL == h_file)
+
+    if (0 != strncmp(p_home_dir, p_join_path, home_dir_len))
+    {
+        fprintf(stderr, "[!] File path provided does not exist "
+                        "within the home directory of the server\n->"
+                        "[DIR] %s\n->[FILE]%s\n", p_home_dir, p_join_path);
+        goto cleanup;
+    }
+
+    verified_path_t * p_path = (verified_path_t *)malloc(sizeof(verified_path_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_path))
     {
         goto cleanup;
     }
-    return h_file;
+
+    p_path->p_path = p_join_path;
+    return p_path;
 
 cleanup:
     free(p_join_path);
@@ -35,50 +71,54 @@ ret_null:
 }
 
 /*!
- * @brief Verify if the p_file path provided resolves inside the home directory
- * path. If it does not, return NULL. Otherwise, attempt to open the p_file
- * provided and return a FILE object.
+ * @brief Destroy the verified_path_t object
  *
- * @param p_home_dir Pointer to the home directory of the server
- * @param home_length Length of the home directory path
- * @param p_file Pointer to the p_file path to open
- * @param p_read_mode Mode to open the p_file path
- * @return FILE object if successful; otherwise NULL
+ * @param pp_path Double pointer to the verified_path_t object
  */
-DEBUG_STATIC FILE * get_file(const char * p_home_dir, size_t home_length, const char * p_file, const char * p_read_mode)
+void f_destroy_path(verified_path_t ** pp_path)
 {
-    if ((NULL == p_home_dir) || (NULL == p_file))
+    if (NULL == pp_path)
+    {
+        return;
+    }
+    verified_path_t * p_path = *pp_path;
+    if (NULL == p_path)
+    {
+        return;
+    }
+
+    if (NULL != p_path->p_path)
+    {
+        free(p_path->p_path);
+        p_path->p_path = NULL;
+    }
+    free(p_path);
+    *pp_path = NULL;
+}
+
+/*!
+ * @brief Simple wrapper for opening the verified_path_t object
+ *
+ * @param p_path Pointer to the verified_path_t object
+ * @param p_read_mode Mode to open the verified_path_t object with
+ * @return File object or NULL if the path cannot be opened
+ */
+FILE * f_open_file(verified_path_t * p_path, const char * p_read_mode)
+{
+    if ((NULL == p_path) || (NULL == p_read_mode) || (NULL == p_path->p_path))
     {
         goto ret_null;
     }
 
-    char * p_abs_path = realpath(p_file, NULL);
-    if (UV_INVALID_ALLOC == verify_alloc(p_abs_path))
-    {
-        goto ret_null;
-    }
-
-    if (0 != strncmp(p_home_dir, p_abs_path, home_length))
-    {
-        fprintf(stderr, "[!] File path provided does not exist "
-                        "within the home directory of the server\n->"
-                        "[DIR] %s\n->[FILE]%s\n", p_home_dir, p_abs_path);
-        goto cleanup;
-    }
-
-    FILE * h_file_obj = fopen(p_abs_path, p_read_mode);
-    if (NULL == h_file_obj)
+    FILE * h_file = fopen(p_path->p_path, p_read_mode);
+    if (NULL == h_file)
     {
         perror("fopen");
-        goto cleanup;
+        goto ret_null;
     }
 
-    free(p_abs_path);
-    return h_file_obj;
+    return h_file;
 
-
-cleanup:
-    free(p_abs_path);
 ret_null:
     return NULL;
 }
@@ -97,13 +137,6 @@ DEBUG_STATIC char * join_paths(const char * p_root, size_t root_length, const ch
 {
     if ((NULL == p_root) || (NULL == p_child))
     {
-        goto ret_null;
-    }
-
-    if ((root_length + child_length + 2) > PATH_MAX)
-    {
-        fprintf(stderr, "[!] Resolve path exceeds the file path "
-                        "character limit\n");
         goto ret_null;
     }
 

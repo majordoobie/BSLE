@@ -11,10 +11,9 @@ static const char * DB_HASH = ".cape/.cape.hash";
 
 void hash_init_db(char * p_dir_path, size_t dir_length)
 {
-    FILE * h_hash_file = s_open_file(p_dir_path, DB_HASH, "r");
+    FILE * h_hash_file = f_open_file(0, "r");
     if (NULL == h_hash_file)
     {
-
     }
 
     if (NULL != h_hash_file)
