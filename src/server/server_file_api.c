@@ -53,6 +53,12 @@ verified_path_t * f_dir_resolve(const char * p_home_dir, const char * p_child)
     // With the verified directory path and the file name, join the two paths
     // together to create a "valid" new file that can exist within the home dir
     char * child_basename = basename(p_child_cpy);
+    // A child_dir of "." is a path with no parent. Therefore, the file path
+    // passed in is empty
+    if ('.' == child_basename[0])
+    {
+        goto cleanup_join;
+    }
     char * p_final_path = join_paths(p_join_path,
                                      strlen(p_join_path),
                                      child_basename,
@@ -60,6 +66,14 @@ verified_path_t * f_dir_resolve(const char * p_home_dir, const char * p_child)
     if (NULL == p_final_path)
     {
         goto cleanup_join;
+    }
+
+    if (0 != strncmp(p_home_dir, p_final_path, home_dir_len))
+    {
+        fprintf(stderr, "[!] File path provided does not exist "
+                        "within the home directory of the server\n->"
+                        "[DIR] %s\n->[FILE]%s\n", p_home_dir, p_final_path);
+        goto cleanup_rsvl;
     }
 
     // Finally, create the verified_path_t object and set the path to the
@@ -71,6 +85,7 @@ verified_path_t * f_dir_resolve(const char * p_home_dir, const char * p_child)
     }
 
     p_path->p_path = p_final_path;
+    free(p_join_path);
     free(p_child_cpy);
     return p_path;
 

@@ -28,6 +28,7 @@ typedef struct verified_path verified_path_t;
  * character limit is exceeded, if the file does not exist or if the file exists but outside the home directory.
  */
 verified_path_t * f_path_resolve(const char * p_home_dir, const char * p_child);
+verified_path_t * f_dir_resolve(const char * p_home_dir, const char * p_child);
 
 /*!
  * @brief Destroy the verified_path_t object
