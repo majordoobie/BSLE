@@ -94,7 +94,7 @@ static verified_path_t * init_hash_file(char * p_home_dir, verified_path_t * p_d
     }
 
     // Read the contents of the file so that we can hash it
-    size_t bytes_read = fread(p_byte_array, (unsigned long)file_size, sizeof(uint8_t), h_db_file);
+    size_t bytes_read = fread(p_byte_array, sizeof(uint8_t),(unsigned long)file_size, h_db_file);
     fclose(h_db_file);
     if (bytes_read != (unsigned long)file_size)
     {
@@ -133,7 +133,7 @@ static verified_path_t * init_hash_file(char * p_home_dir, verified_path_t * p_d
     fwrite(p_hash->array, sizeof(uint8_t), p_hash->size, h_hash_file);
 
     // clean up
-    fclose(h_db_file);
+    fclose(h_hash_file);
     free(p_byte_array);
     hash_destroy(&p_hash);
 
