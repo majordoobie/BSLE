@@ -99,10 +99,3 @@ TEST(TestMatchingFunc, TestMatch)
     EXPECT_TRUE(hash_pass_match(hash, hash_str, strlen(hash_str)));
     hash_destroy(& hash);
 }
-
-TEST(TestInitDB, TestInit)
-{
-    const char * home = "/tmp";
-    int res = hash_init_db((char *)home, strlen(home));
-    EXPECT_EQ(res, 0);
-}

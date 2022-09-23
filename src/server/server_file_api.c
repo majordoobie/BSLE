@@ -254,6 +254,181 @@ ret_null:
 }
 
 /*!
+ * @brief Simple wrapper to write the data stream to the verified file path
+ *
+ * @param p_path Pointer to a verified_file_t object
+ * @param p_stream Pointer to a byte stream
+ * @param stream_size Number of bytes in the byte stream
+ * @return FILE_OP_SUCCESS if operation succeeded, otherwise FILE_OP_FAILURE
+ */
+file_op_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stream_size)
+{
+    if ((NULL == p_path) || (NULL == p_stream))
+    {
+        goto ret_null;
+    }
+
+    FILE * h_path = f_open_file(p_path, "w");
+    if (NULL == h_path) // Message printed already
+    {
+        goto ret_null;
+    }
+
+    size_t write = fwrite(p_stream, sizeof(uint8_t), stream_size, h_path);
+    if (write != stream_size)
+    {
+        fprintf(stderr, "[!] Unable to write all bytes to %s\n",
+                p_path->p_path);
+        goto cleanup;
+    }
+    fclose(h_path);
+    return FILE_OP_SUCCESS;
+
+cleanup:
+    fclose(h_path);
+ret_null:
+    return FILE_OP_FAILURE;
+}
+
+/*!
+ * @brief Read wrapper is used to read the verified file path. If successful,
+ * the data read is hashed and all the metadata about the stream is added
+ * into the file_content_t object.
+ *
+ * @param p_path Pointer to a verified_path_t object
+ * @return file_content_t object if successful, otherwise NULL
+ */
+file_content_t * f_read_file(verified_path_t * p_path)
+{
+    if (NULL == p_path)
+    {
+        goto ret_null;
+    }
+
+    FILE * h_path = f_open_file(p_path, "r");
+    if (NULL == h_path)
+    {
+        fprintf(stderr, "[!] Could not open the %s file for "
+                        "reading\n", p_path->p_path);
+        goto ret_null;
+    }
+
+    // Get the files size to allocate a byte array
+    int result = fseek(h_path, 0L, SEEK_END);
+    if (-1 == result)
+    {
+        fprintf(stderr, "[!] Error attempting to seek file %s: "
+                        "%s", p_path->p_path, strerror(errno));
+        goto cleanup_close;
+    }
+    long int file_size = ftell(h_path);
+    if (-1 == file_size)
+    {
+        fprintf(stderr, "[!] Error attempting to ftell file %s: "
+                        "%s", p_path->p_path, strerror(errno));
+        goto cleanup_close;
+    }
+    result = fseek(h_path, 0L, SEEK_SET);
+    if (-1 == result)
+    {
+        fprintf(stderr, "[!] Error attempting to seek file %s: "
+                        "%s", p_path->p_path, strerror(errno));
+        goto cleanup_close;
+    }
+
+    // Create the byte array to read the contents of the file
+    uint8_t * p_byte_array = (uint8_t *)calloc((unsigned long)file_size, sizeof(uint8_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_byte_array))
+    {
+        goto cleanup_close;
+    }
+
+    // Read the contents into the p_byte_array created
+    size_t bytes_read = fread(p_byte_array, sizeof(uint8_t),(unsigned long)file_size, h_path);
+    fclose(h_path);
+    if (bytes_read != (unsigned long)file_size)
+    {
+        fprintf(stderr, "[!] Unable to read all the bytes from the "
+                        "file %s\n", p_path->p_path);
+        goto cleanup_array;
+    }
+
+    // Hash the data stream
+    hash_t * p_hash = hash_byte_array(p_byte_array, bytes_read);
+    if (NULL == p_hash)
+    {
+        fprintf(stderr, "[!] Unable to hash the contents of "
+                        "%s", p_path->p_path);
+        goto cleanup_array;
+    }
+
+    // Create the file read content
+    file_content_t * p_content = (file_content_t *)malloc(sizeof(file_content_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_content))
+    {
+        goto cleanup_hash;
+    }
+
+    // Duplicate the file path, the verified path is not needed inside the
+    // contents structure
+    char * p_file_path = strdup(p_path->p_path);
+    if (UV_INVALID_ALLOC == verify_alloc(p_file_path))
+    {
+        goto cleanup_content;
+    }
+
+    // Save data into the content structure to return
+    *p_content = (file_content_t){
+        .p_stream       = p_byte_array,
+        .p_hash         = p_hash,
+        .stream_size    = bytes_read,
+        .p_path         = p_file_path
+    };
+
+    return p_content;
+
+cleanup_content:
+    free(p_content); // Content is not populated here so no destroy is called
+cleanup_hash:
+    hash_destroy(&p_hash);
+cleanup_array:
+    free(p_byte_array);
+cleanup_close:
+    fclose(h_path);
+ret_null:
+    return NULL;
+}
+
+/*!
+ * @brief Destroy the file_content_t object
+ * @param pp_content Double pointer to the file_content_t object
+ */
+void f_destroy_content(file_content_t ** pp_content)
+{
+    if (NULL == pp_content)
+    {
+        return;
+    }
+
+    file_content_t * p_content = *pp_content;
+    if (NULL == p_content)
+    {
+        return;
+    }
+
+    hash_destroy(&p_content->p_hash);
+    free(p_content->p_stream);
+    free(p_content->p_path);
+    *p_content = (file_content_t){
+        .p_stream    = NULL,
+        .p_path      = NULL,
+        .p_hash      = NULL,
+        .stream_size = 0
+    };
+    *pp_content = NULL;
+}
+
+/*!
  * @brief Attempt to join and resolve the two paths provided. The function will
  * handle the "/" regardless if both or neither paths to join have the "/".
  *

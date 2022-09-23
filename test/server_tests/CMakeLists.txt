@@ -6,7 +6,7 @@ add_executable(
 target_link_libraries(
         gtest_server_args
         PUBLIC
-        server_backend
+        server_ctrl
 )
 
 
@@ -32,8 +32,19 @@ target_link_libraries(
         server_crypto
 )
 
+# Unit test the server backend
+add_executable(
+        gtest_server_ctrl
+        gtest_server_ctrl.cpp
+)
+target_link_libraries(
+        gtest_server_ctrl
+        PUBLIC
+        server_ctrl
+)
 
 
+GTest_add_target(gtest_server_ctrl)
 GTest_add_target(gtest_server_crypto)
 GTest_add_target(gtest_server_file_api)
 GTest_add_target(gtest_server_args)

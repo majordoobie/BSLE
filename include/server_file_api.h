@@ -10,8 +10,12 @@ extern "C" {
 #include <stdbool.h>
 #include <libgen.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <errno.h>
 
 #include <utils.h>
+#include <server_crypto.h>
 
 typedef enum
 {
@@ -19,7 +23,18 @@ typedef enum
     FILE_OP_FAILURE
 } file_op_t;
 
+
 typedef struct verified_path verified_path_t;
+
+// Structure is used when reading contents. It holds the file byte stream
+// along with its hash, its path and the streams size.
+typedef struct
+{
+    hash_t *    p_hash;
+    uint8_t *   p_stream;
+    size_t      stream_size;
+    char *      p_path;
+} file_content_t;
 
 /*!
  * @brief Function verifies that the combination of the joining of the parent
@@ -67,6 +82,32 @@ void f_destroy_path(verified_path_t ** pp_path);
  * @return File object or NULL if the path cannot be opened
  */
 FILE * f_open_file(verified_path_t * p_path, const char * p_read_mode);
+
+/*!
+ * @brief Read wrapper is used to read the verified file path. If successful,
+ * the data read is hashed and all the metadata about the stream is added
+ * into the file_content_t object.
+ *
+ * @param p_path Pointer to a verified_path_t object
+ * @return file_content_t object if successful, otherwise NULL
+ */
+file_content_t * f_read_file(verified_path_t * p_path);
+
+/*!
+ * @brief Destroy the file_content_t object
+ * @param pp_content Double pointer to the file_content_t object
+ */
+void f_destroy_content(file_content_t ** pp_content);
+
+/*!
+ * @brief Simple wrapper to write the data stream to the verified file path
+ *
+ * @param p_path Pointer to a verified_file_t object
+ * @param p_stream Pointer to a byte stream
+ * @param stream_size Number of bytes in the byte stream
+ * @return FILE_OP_SUCCESS if operation succeeded, otherwise FILE_OP_FAILURE
+ */
+file_op_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stream_size);
 
 /*!
  * @brief Simple wrapper for creating a directory using the verified_path_t
