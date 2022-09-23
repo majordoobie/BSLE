@@ -2,6 +2,7 @@
 
 DEBUG_STATIC void print_b_array(hash_t * p_hash);
 DEBUG_STATIC hash_t * hex_char_to_byte_array(const char * p_hash_str, size_t hash_size);
+static bool hash_compare(uint8_t * l_array, uint8_t * r_array, size_t size);
 
 /*!
  * @brief Function takes a hash_t object and compares it against a hexadecimal
@@ -34,6 +35,77 @@ bool hash_pass_match(hash_t * p_hash, const char * p_input, size_t length)
         }
     }
     hash_destroy(&p_pw_hash);
+    return true;
+}
+
+/*!
+ * @brief Compare the hash of the hash_t to the array passed in
+ *
+ * @param p_hash Pointer to a p_hash object
+ * @param p_array Pointer to an array representing the hash
+ * @param array_size The size of the p_array
+ * @return true if hashes match else false
+ */
+bool hash_bytes_match(hash_t * p_hash, uint8_t * p_array, size_t array_size)
+{
+    if ((NULL == p_hash) || (NULL == p_array))
+    {
+        goto ret_null;
+    }
+
+    if (p_hash->size != array_size)
+    {
+        goto ret_null;
+    }
+
+    return hash_compare(p_hash->array, p_array, array_size);
+
+ret_null:
+    return false;
+}
+
+/*!
+ * @brief Compare if the hashes of two hash_t objects match
+ *
+ * @param p_lhash Pointer to a p_hash object
+ * @param p_rhash Pointer to a p_hash object
+ * @return true if hashes match else false
+ */
+bool hash_hash_t_match(hash_t * p_lhash, hash_t * p_rhash)
+{
+    if ((NULL == p_lhash) || (NULL == p_rhash))
+    {
+        goto ret_null;
+    }
+
+    if (p_rhash->size != p_lhash->size)
+    {
+        goto ret_null;
+    }
+
+    return hash_compare(p_lhash->array, p_rhash->array, p_lhash->size);
+
+
+ret_null:
+    return false;
+}
+
+/*!
+ * @brief Compare if the two arrays match byte to byte
+ * @param l_array Pointer to a byte array
+ * @param r_array Pointer to a byte array
+ * @param size Size of the byte arrays
+ * @return true if arrays match else false
+ */
+static bool hash_compare(uint8_t * l_array, uint8_t * r_array, size_t size)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        if (l_array[i] != r_array[i])
+        {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -78,6 +150,8 @@ hash_t * hash_byte_array(uint8_t * p_byte_array, size_t length)
         .array = p_hash_digest,
         .size = SHA256_DIGEST_LENGTH
     };
+
+    print_b_array(p_hash);
     return p_hash;
 
 cleanup:

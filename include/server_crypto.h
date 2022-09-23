@@ -46,6 +46,24 @@ hash_t * hash_byte_array(uint8_t * p_byte_array, size_t length);
  */
 void hash_destroy(hash_t ** pp_hash);
 
+/*!
+ * @brief Compare if the hashes of two hash_t objects match
+ *
+ * @param p_lhash Pointer to a p_hash object
+ * @param p_rhash Pointer to a p_hash object
+ * @return true if hashes match else false
+ */
+bool hash_hash_t_match(hash_t * p_lhash, hash_t * p_rhash);
+
+/*!
+ * @brief Compare the hash of the hash_t to the array passed in
+ *
+ * @param p_hash Pointer to a p_hash object
+ * @param p_array Pointer to an array representing the hash
+ * @param array_size The size of the p_array
+ * @return true if hashes match else false
+ */
+bool hash_bytes_match(hash_t * p_hash, uint8_t * p_array, size_t array_size);
 
 // HEADER GUARD
 #ifdef __cplusplus

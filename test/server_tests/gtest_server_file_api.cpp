@@ -114,7 +114,8 @@ TEST_P(ServerFileApiTest, TestFileMayExist)
     static int val = 0;
     val++;
 
-    verified_path_t * p_path = f_dir_resolve((char *)parent.c_str(), (char *)child.c_str());
+    verified_path_t * p_path =
+        f_valid_resolve((char *)parent.c_str(), (char *)child.c_str());
     if (expect_may_exist)
     {
         EXPECT_NE(nullptr, p_path);

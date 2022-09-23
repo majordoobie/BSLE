@@ -11,6 +11,7 @@ extern "C" {
 #include <utils.h>
 #include <server_file_api.h>
 #include <server_crypto.h>
+#include <server_init.h>
 
 typedef enum
 {
@@ -31,9 +32,6 @@ typedef enum
     READ_WRITE  = 2,
     ADMIN       = 3
 } perms_t;
-
-int8_t hash_init_db(char * p_home_dir, size_t dir_length);
-
 
 // HEADER GUARD
 #ifdef __cplusplus

@@ -23,7 +23,7 @@ static char * join_paths(const char * p_root, size_t root_length, const char * p
  * @return verified_path_t object or a NULL is returned if the file path
  * character limit is exceeded, if the file does not exist or if the file exists but outside the home directory.
  */
-verified_path_t * f_dir_resolve(const char * p_home_dir, const char * p_child)
+verified_path_t * f_valid_resolve(const char * p_home_dir, const char * p_child)
 {
     if ((NULL == p_home_dir) || (NULL == p_child))
     {
@@ -143,8 +143,7 @@ verified_path_t * f_path_resolve(const char * p_home_dir, const char * p_child)
         goto ret_null;
     }
 
-    char * p_join_path =
-        join_and_resolve_paths(p_home_dir, home_dir_len, p_child, child_len);
+    char * p_join_path = join_and_resolve_paths(p_home_dir, home_dir_len, p_child, child_len);
     if (NULL == p_join_path)
     {
         goto ret_null;
@@ -425,6 +424,7 @@ void f_destroy_content(file_content_t ** pp_content)
         .p_hash      = NULL,
         .stream_size = 0
     };
+    free(p_content);
     *pp_content = NULL;
 }
 
@@ -452,10 +452,9 @@ DEBUG_STATIC char * join_and_resolve_paths(const char * p_root, size_t root_leng
     }
 
     char * p_abs_path = realpath(new_path, NULL);
-    if (UV_INVALID_ALLOC == verify_alloc(p_abs_path))
+    if (NULL == p_abs_path)
     {
-        perror("\nrealpath");
-        goto cleanup;
+        goto cleanup; // Path did not resolve
     }
 
     free(new_path);
