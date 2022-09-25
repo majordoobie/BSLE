@@ -361,7 +361,6 @@ static verified_path_t * init_db_dir(char * p_home_dir)
         goto ret_null;
     }
 
-    printf("Trying to create: %s\n", p_db_dir);
     file_op_t status = f_create_dir(p_db_dir);
     if (FILE_OP_FAILURE == status)
     {

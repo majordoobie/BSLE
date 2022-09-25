@@ -213,6 +213,7 @@ file_op_t f_create_dir(verified_path_t * p_path)
         goto ret_null;
     }
 
+    printf("\n\n[!!!!!!!]Trying to make %s\n\n", p_path->p_path);
     int result = mkdir(p_path->p_path, 0777);
     if (-1 == result)
     {
