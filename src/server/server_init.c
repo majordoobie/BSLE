@@ -10,6 +10,8 @@ static const uint32_t MAGIC_BYTES   = 0xFFAAFABA;
 static verified_path_t * init_db_dir(char * p_home_dir);
 static verified_path_t * init_db_file(const char * p_home_dir);
 static verified_path_t * update_db_hash(const char * p_home_dir, verified_path_t * p_db_file);
+static bool verify_magic(file_content_t * p_content);
+static bool get_stored_hash(file_content_t * p_content);
 
 int8_t hash_init_db(char * p_home_dir, size_t dir_length)
 {
@@ -54,6 +56,7 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
     {
         goto cleanup_hash;
     }
+
     file_content_t * p_hash_contents = f_read_file(p_hash_file);
     if (NULL == p_hash_contents)
     {
@@ -63,8 +66,14 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
     f_destroy_path(&p_hash_file);
     f_destroy_path(&p_db_file);
 
+    // Extract the hash of the p_db_file from the p_hash_file
+    if (!get_stored_hash(p_hash_contents))
+    {
+        goto cleanup_db_content;
+    }
+
     //TODO you need to read the buff dude
-    if (hash_hash_t_match(p_db_contents->p_hash, p_hash_contents->p_hash))
+    if (hash_bytes_match(p_db_contents->p_hash, p_hash_contents->p_stream, p_hash_contents->stream_size))
     {
         printf("THEY MATCH\n");
     }
@@ -87,6 +96,64 @@ cleanup_db:
     f_destroy_path(&p_db_file);
 ret_null:
     return -1;
+}
+
+static bool get_stored_hash(file_content_t * p_content)
+{
+    if (NULL == p_content)
+    {
+        goto ret_null;
+    }
+    // Ensure that the data read has the same amount of bytes as the digest
+    // and magic bytes
+    if (p_content->stream_size != (SHA256_DIGEST_LENGTH + sizeof(MAGIC_BYTES)))
+    {
+        goto ret_null;
+    }
+
+    if (!verify_magic(p_content))
+    {
+        goto ret_null;
+    }
+
+    // With the magic bytes verified, extract the hash portion and save it to
+    // the file_content_t structure and update the size of the stream
+    uint8_t * p_stream = (uint8_t *)calloc(SHA256_DIGEST_LENGTH, sizeof(uint8_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_stream))
+    {
+        goto ret_null;
+    }
+    memcpy(p_stream, p_content->p_stream + sizeof(MAGIC_BYTES), SHA256_DIGEST_LENGTH);
+    free(p_content->p_stream);
+    p_content->p_stream     = p_stream;
+    p_content->stream_size  = SHA256_DIGEST_LENGTH;
+    return true;
+
+ret_null:
+    return false;
+}
+
+static bool verify_magic(file_content_t * p_content)
+{
+    if (NULL == p_content)
+    {
+        goto ret_null;
+    }
+    if (p_content->stream_size < sizeof(MAGIC_BYTES))
+    {
+        goto ret_null;
+    }
+
+    uint32_t stored_magic = {0};
+    memcpy(& stored_magic, p_content->p_stream, sizeof(MAGIC_BYTES));
+    if (MAGIC_BYTES != stored_magic)
+    {
+        goto ret_null;
+    }
+    return true;
+
+ret_null:
+    return false;
 }
 
 /*!
@@ -161,7 +228,6 @@ static verified_path_t * update_db_hash(const char * p_home_dir, verified_path_t
     }
 
     fwrite(&MAGIC_BYTES, sizeof(uint32_t), 1, h_hash_file);
-    fwrite("\n", sizeof(char), 1, h_hash_file);
     fwrite(p_hash->array, sizeof(uint8_t), p_hash->size, h_hash_file);
 
     // clean up
