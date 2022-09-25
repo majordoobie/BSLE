@@ -126,6 +126,16 @@ ret_null:
     return -1;
 }
 
+/*!
+ * @brief Read the data from the file_content_t object and verify that the
+ * data has the magic bytes. If it does not return "false" indicating that
+ * the file does not have the magic bytes. If successful, replace the read
+ * bytes stream with the same stream but with the magic bytes absent.
+ *
+ * @param p_content Pointer a file_content_t object
+ * @return True if the file_content_t object has the magic bytes and the
+ * removal of the magic bytes from the file_content_t object
+ */
 static bool get_stored_data(file_content_t * p_content)
 {
     if (!verify_magic(p_content))
@@ -151,6 +161,16 @@ ret_null:
     return false;
 }
 
+/*!
+ * @brief Before sending the file content to get_stored_data, ensure that the
+ * data stream stored in the file_content_t object has the length of the
+ * SHA256 digest plus the magic bytes. If it does not, then do not bother
+ * trying to extract the hash
+ *
+ * @param p_content Pointer to the file_content_t object
+ * @return True if the file_content_t object has the magic bytes and the
+ * removal of the magic bytes from the file_content_t object
+ */
 static bool get_stored_hash(file_content_t * p_content)
 {
     if (NULL == p_content)
@@ -170,6 +190,13 @@ ret_null:
     return false;
 }
 
+/*!
+ * @brief Read the four bytes stored in the file_content_t that represents
+ * the magic bytes.
+ *
+ * @param p_content Pointer to the file_content_t object
+ * @return True if the file read has a matching magic byte else false
+ */
 static bool verify_magic(file_content_t * p_content)
 {
     if (NULL == p_content)
