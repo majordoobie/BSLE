@@ -4,7 +4,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif //END __cplusplus
-#include <server_ctrl.h>
 #include <server_args.h>
 
 

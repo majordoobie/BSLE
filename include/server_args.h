@@ -13,8 +13,8 @@ extern "C" {
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <server_ctrl.h>
 #include <utils.h>
+#include <server.h>
 
 typedef struct
 {

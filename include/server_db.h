@@ -9,9 +9,9 @@ extern "C" {
 #include <stdbool.h>
 
 #include <utils.h>
+#include <server.h>
 #include <server_file_api.h>
 #include <server_crypto.h>
-#include <server_ctrl.h>
 
 int8_t hash_init_db(char * p_home_dir, size_t dir_length);
 

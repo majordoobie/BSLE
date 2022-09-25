@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <server_ctrl.h>
+#include <server_db.h>
 #include <filesystem>
 #include <fstream>
 
@@ -57,6 +57,5 @@ TEST_F(DBInitLogic, TestMissMatchDBHash)
     output << 0xFFAAFABA;
     int res = hash_init_db((char *)home, strlen(home));
     EXPECT_EQ(res, -1); // Identifies that the db file DOES NOT have the MAGIC
-
 }
 

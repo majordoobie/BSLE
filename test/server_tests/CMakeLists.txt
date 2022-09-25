@@ -34,17 +34,17 @@ target_link_libraries(
 
 # Unit test the server backend
 add_executable(
-        gtest_server_ctrl
-        gtest_server_ctrl.cpp
+        gtest_server_db
+        gtest_server_db.cpp
 )
 target_link_libraries(
-        gtest_server_ctrl
+        gtest_server_db
         PUBLIC
-        server_ctrl
+        server_file_api
 )
 
 
-GTest_add_target(gtest_server_ctrl)
+GTest_add_target(gtest_server_db)
 GTest_add_target(gtest_server_crypto)
 GTest_add_target(gtest_server_file_api)
 GTest_add_target(gtest_server_args)

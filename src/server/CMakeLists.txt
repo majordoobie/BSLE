@@ -3,7 +3,7 @@ include(build_utils)
 add_library(util SHARED utils.c)
 set_project_properties(util ${PROJECT_SOURCE_DIR}/include)
 
-add_library(server_file_api SHARED server_file_api.c server_crypto.c server_init.c)
+add_library(server_file_api SHARED server_file_api.c server_crypto.c server_db.c)
 target_link_libraries(server_file_api PUBLIC util ssl crypto)
 set_project_properties(server_file_api ${PROJECT_SOURCE_DIR}/include)
 

@@ -1,4 +1,4 @@
-#include <server_init.h>
+#include <server_db.h>
 
 static const char * DB_DIR          = ".cape";
 static const char * DB_NAME         = ".cape/.cape.db";
@@ -12,6 +12,7 @@ static verified_path_t * init_db_file(const char * p_home_dir);
 static verified_path_t * update_db_hash(const char * p_home_dir, verified_path_t * p_db_file);
 static bool verify_magic(file_content_t * p_content);
 static bool get_stored_hash(file_content_t * p_content);
+static bool get_stored_data(file_content_t * p_content);
 
 int8_t hash_init_db(char * p_home_dir, size_t dir_length)
 {
@@ -50,6 +51,7 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
             goto cleanup_db;
         }
     }
+
     // If only one of the files exist, warn about the issue and exit
     else if ((NULL == p_hash_file) || (NULL == p_db_file))
     {
@@ -64,12 +66,12 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
         goto cleanup_hash;
     }
 
+    // Read the contents of the db file and the hash file
     file_content_t * p_db_contents = f_read_file(p_db_file);
     if (NULL == p_db_contents)
     {
         goto cleanup_hash;
     }
-
     file_content_t * p_hash_contents = f_read_file(p_hash_file);
     if (NULL == p_hash_contents)
     {
@@ -79,12 +81,15 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
     f_destroy_path(&p_hash_file);
     f_destroy_path(&p_db_file);
 
-    // Extract the hash of the p_db_file from the p_hash_file
+    // Extract the hash for the .cape.db that is stored in the .cape.hash
+    // The hash will replace the contents of p_hash_contents
     if (!get_stored_hash(p_hash_contents))
     {
         goto cleanup_hash_content;
     }
 
+    // Check that the hash of the .cape.db matches the hash stored in .cape.hash
+    // if it does not then return failure
     if (!hash_bytes_match(p_db_contents->p_hash,
                          p_hash_contents->p_stream,
                          p_hash_contents->stream_size))
@@ -94,12 +99,21 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
                         "what it was or remove all `.cape` files to start over.");
         goto cleanup_hash_content;
     }
-
-    f_destroy_content(&p_db_contents);
     f_destroy_content(&p_hash_contents);
 
 
+    // Check that the p_db_contents has the magic bytes and if it does
+    // replace the contents array with the actual contents of the db
+    if (!get_stored_data(p_db_contents))
+    {
+        goto cleanup_db_content;
+    }
+
+
+
+    f_destroy_content(&p_db_contents);
     return 0;
+
 cleanup_hash_content:
     f_destroy_content(&p_hash_contents);
 cleanup_db_content:
@@ -110,6 +124,31 @@ cleanup_db:
     f_destroy_path(&p_db_file);
 ret_null:
     return -1;
+}
+
+static bool get_stored_data(file_content_t * p_content)
+{
+    if (!verify_magic(p_content))
+    {
+        goto ret_null;
+    }
+
+    size_t data_size = p_content->stream_size - sizeof(MAGIC_BYTES);
+
+    // With the magic bytes verified, make room for the actual content
+    uint8_t * p_stream = (uint8_t *)calloc(data_size,sizeof(uint8_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_stream))
+    {
+        goto ret_null;
+    }
+    memcpy(p_stream, p_content->p_stream + sizeof(MAGIC_BYTES), data_size);
+    free(p_content->p_stream);
+    p_content->p_stream     = p_stream;
+    p_content->stream_size  = data_size;
+    return true;
+
+ret_null:
+    return false;
 }
 
 static bool get_stored_hash(file_content_t * p_content)
@@ -125,23 +164,7 @@ static bool get_stored_hash(file_content_t * p_content)
         goto ret_null;
     }
 
-    if (!verify_magic(p_content))
-    {
-        goto ret_null;
-    }
-
-    // With the magic bytes verified, extract the hash portion and save it to
-    // the file_content_t structure and update the size of the stream
-    uint8_t * p_stream = (uint8_t *)calloc(SHA256_DIGEST_LENGTH, sizeof(uint8_t));
-    if (UV_INVALID_ALLOC == verify_alloc(p_stream))
-    {
-        goto ret_null;
-    }
-    memcpy(p_stream, p_content->p_stream + sizeof(MAGIC_BYTES), SHA256_DIGEST_LENGTH);
-    free(p_content->p_stream);
-    p_content->p_stream     = p_stream;
-    p_content->stream_size  = SHA256_DIGEST_LENGTH;
-    return true;
+    return get_stored_data(p_content);
 
 ret_null:
     return false;
@@ -338,6 +361,7 @@ static verified_path_t * init_db_dir(char * p_home_dir)
         goto ret_null;
     }
 
+    printf("Trying to create: %s\n", p_db_dir);
     file_op_t status = f_create_dir(p_db_dir);
     if (FILE_OP_FAILURE == status)
     {
