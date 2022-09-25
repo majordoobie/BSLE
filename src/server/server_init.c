@@ -50,6 +50,19 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
             goto cleanup_db;
         }
     }
+    // If only one of the files exist, warn about the issue and exit
+    else if ((NULL == p_hash_file) || (NULL == p_db_file))
+    {
+        const char * missing = (NULL == p_hash_file) ? DB_NAME : DB_HASH;
+        const char * exist = (NULL != p_hash_file) ? DB_NAME : DB_HASH;
+
+        fprintf(stderr, "[!] The \"%s\" file missing while \"%s\" "
+                        "exist in the \"%s/%s\" home directory. Either return "
+                        "the \"%s\" file or remove \"%s\" before starting "
+                        "the server.\n",
+                        missing, exist, p_home_dir, DB_DIR, missing, exist);
+        goto cleanup_hash;
+    }
 
     file_content_t * p_db_contents = f_read_file(p_db_file);
     if (NULL == p_db_contents)
@@ -69,17 +82,17 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
     // Extract the hash of the p_db_file from the p_hash_file
     if (!get_stored_hash(p_hash_contents))
     {
-        goto cleanup_db_content;
+        goto cleanup_hash_content;
     }
 
-    //TODO you need to read the buff dude
-    if (hash_bytes_match(p_db_contents->p_hash, p_hash_contents->p_stream, p_hash_contents->stream_size))
+    if (!hash_bytes_match(p_db_contents->p_hash,
+                         p_hash_contents->p_stream,
+                         p_hash_contents->stream_size))
     {
-        printf("THEY MATCH\n");
-    }
-    else
-    {
-        printf("THey do not match\n");
+        fprintf(stderr, "[!] Hash stored does not match the hash "
+                        "of the database. Revert the database base back to "
+                        "what it was or remove all `.cape` files to start over.");
+        goto cleanup_hash_content;
     }
 
     f_destroy_content(&p_db_contents);
@@ -87,7 +100,8 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
 
 
     return 0;
-
+cleanup_hash_content:
+    f_destroy_content(&p_hash_contents);
 cleanup_db_content:
     f_destroy_content(&p_db_contents);
 cleanup_hash:
