@@ -5,6 +5,20 @@
 
 const char * home = "/tmp";
 
+TEST(TestDBParsing, ParseDB)
+{
+    // Remove the cape directory if it exists
+    std::filesystem::remove_all("/tmp/.cape");
+
+    /*
+     * Test the successful creation of the ./cape dir and the .cape/.cape.db and
+     * .cape/.cape.hash
+     */
+    int res = hash_init_db((char *)home, strlen(home));
+    EXPECT_EQ(res, 0); // Creates both
+
+//    std::filesystem::remove_all("/tmp/.cape");
+}
 /*
  * All these tests have to run in order since they access files on disk.
  * Therefore instead of making a test fixture (I tried, but it breaks when running

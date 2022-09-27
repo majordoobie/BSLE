@@ -1,10 +1,15 @@
 #include <server_db.h>
 
+#define stringify(x) stringify2(x)
+#define stringify2(x) #x
+
 static const char * DB_DIR          = ".cape";
 static const char * DB_NAME         = ".cape/.cape.db";
 static const char * DB_HASH         = ".cape/.cape.hash";
 static const char * DEFAULT_USER    = "admin";
 static const char * DEFAULT_HASH    = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
+static const char * DB_FMT          = "%s:%hhd:%s\n";
+//static const char * DB_SCAN_FMT     = "%s:%hhd:%s[^\n]";
 static const uint32_t MAGIC_BYTES   = 0xFFAAFABA;
 
 static verified_path_t * init_db_dir(char * p_home_dir);
@@ -13,6 +18,16 @@ static verified_path_t * update_db_hash(const char * p_home_dir, verified_path_t
 static bool verify_magic(file_content_t * p_content);
 static bool get_stored_hash(file_content_t * p_content);
 static bool get_stored_data(file_content_t * p_content);
+static void populate_htable(htable_t * p_htable, file_content_t * p_contents);
+
+
+
+// These functions are used for the creation of the hashtable that stores
+// the user information
+void free_key_callback(void * key);
+void free_value_callback(void * payload);
+static uint64_t hash_callback(void * key);
+static htable_match_t compare_callback(void * left_key, void * right_key);
 
 int8_t hash_init_db(char * p_home_dir, size_t dir_length)
 {
@@ -110,7 +125,21 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
     }
 
 
+    // Create the hashtable object that is going to store the users
+    htable_t * htable = htable_create(hash_callback, compare_callback,
+                                      free_key_callback, free_value_callback);
+    if (NULL == htable)
+    {
+        fprintf(stderr, "[!] Failed to create the hashtable"
+                        "with the stored users\n");
+        goto cleanup_hash_content;
+    }
 
+    populate_htable(htable, p_db_contents);
+
+
+
+    htable_destroy(htable, HT_FREE_PTR_TRUE, HT_FREE_PTR_TRUE);
     f_destroy_content(&p_db_contents);
     return 0;
 
@@ -124,6 +153,25 @@ cleanup_db:
     f_destroy_path(&p_db_file);
 ret_null:
     return -1;
+}
+
+static void populate_htable(htable_t * p_htable, file_content_t * p_contents)
+{
+    if (NULL == p_htable)
+    {
+        return;
+    }
+
+    uint8_t perm = 0;
+    char username[MAX_USERNAME_LEN + 1] = {0};
+    char pw_hash[(SHA256_DIGEST_LENGTH * 2) + 1] = {0};
+
+    int res = sscanf((char *)p_contents->p_stream,
+           "%" stringify(MAX_USERNAME_LEN) "[^:]:%hhu:%" stringify(SHA256_DIGEST_LEN) "[^\n]",
+           username, &perm, pw_hash);
+
+    printf("Parsed %d tokens\n", res);
+    printf("User: %s\nPerm: %d\nHash: %s\n", username, perm, pw_hash);
 }
 
 /*!
@@ -344,7 +392,7 @@ static verified_path_t * init_db_file(const char * p_home_dir)
 
     // Populate the p_buffer with the default data
     memcpy(p_buffer, &MAGIC_BYTES, 4);
-    int write_bytes = sprintf((char *)(p_buffer + 4), "%s:%hhd:%s\n", DEFAULT_USER, (uint8_t){ADMIN}, DEFAULT_HASH);
+    int write_bytes = sprintf((char *)(p_buffer + 4), DB_FMT, DEFAULT_USER, (uint8_t){ADMIN}, DEFAULT_HASH);
     //*NOTE* The - 4 is to exclude the magic bytes and the + 1 is to
     // include the "\0". sprintf does not consider this a byte written
     if ((array_size - 4) != (write_bytes + 1))
@@ -404,4 +452,83 @@ cleanup:
     f_destroy_path(&p_db_dir);
 ret_null:
     return NULL;
+}
+
+/*!
+ * @brief Callback is used for the users_htable
+ * @param key Pointer to the key object to be hashed. In this case, it is
+ * the users username
+ *
+ * @return Hash value of the key
+ */
+static uint64_t hash_callback(void * key)
+{
+    char * s = (char *)key;
+    uint64_t hash = htable_get_init_hash();
+
+    htable_hash_key(&hash, s, strlen(s));
+    return hash;
+}
+
+/*!
+ * @brief Callback is used for the users_htable
+ * @param left_key Left key to compare
+ * @param right_key Right key to compare
+ *
+ * @return If the two keys match. In this case, if the two usernames match
+ */
+static htable_match_t compare_callback(void * left_key, void * right_key)
+{
+    char * left = (char *)left_key;
+    char * right = (char *)right_key;
+
+    // This test function only tests the payload strings. But you would compare
+    // all items of the struct
+    if (0 == strcmp(left, right))
+    {
+        return HT_MATCH_TRUE;
+    }
+    return HT_MATCH_FALSE;
+}
+
+/*!
+ * @brief Callback is used for the user_htable
+ *
+ * @param payload Pointer to the value object stored in the hash table
+ */
+void free_value_callback(void * payload)
+{
+    if (NULL == payload)
+    {
+        return;
+    }
+    user_account_t * s = (user_account_t *)payload;
+    if (NULL != s->username)
+    {
+        free(s->username);
+    }
+    if (NULL != s->pw_hash)
+    {
+        free(s->pw_hash);
+    }
+
+    *s = (user_account_t){
+        .username   = NULL,
+        .pw_hash    = NULL,
+        .permission = 0,
+        .hash_size  = 0
+    };
+    free(s);
+}
+
+/*!
+ * @brief Callback is used for the user_htable
+ *
+ * @param payload Pointer to the key object stored in the hash table
+ */
+void free_key_callback(void * key)
+{
+    char * s = (char *)key;
+    free(s);
+    s = NULL;
 }
