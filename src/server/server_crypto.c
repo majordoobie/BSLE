@@ -188,20 +188,6 @@ void hash_destroy(hash_t ** pp_hash)
     *pp_hash = NULL;
 }
 
-
-DEBUG_STATIC void print_b_array(hash_t * p_hash)
-{
-    if (NULL == p_hash)
-    {
-        return;
-    }
-    for (size_t i = 0; i < p_hash->size; i++)
-    {
-        printf("%02x", p_hash->array[i]);
-    }
-    printf("\n");
-}
-
 /*!
  * @brief Translate a hexadecimal hash back into a byte array. Every two
  * characters of a hexadecimal array represents one byte. The function
@@ -212,7 +198,7 @@ DEBUG_STATIC void print_b_array(hash_t * p_hash)
  * @param hash_size Size of the hexadecimal string
  * @return hash_t object if successful otherwise NULL
  */
-DEBUG_STATIC hash_t * hex_char_to_byte_array(const char * p_hash_str, size_t hash_size)
+hash_t * hex_char_to_byte_array(const char * p_hash_str, size_t hash_size)
 {
     if ((NULL == p_hash_str) || (0 == hash_size))
     {
@@ -250,9 +236,9 @@ DEBUG_STATIC hash_t * hex_char_to_byte_array(const char * p_hash_str, size_t has
             str_idx  += 2;
             barr_idx += 1;
         }
-        // EOF is returned when either the end of the string is reached or
-        // when an error occurred. Since we are reading with bounds, we should
-        // only get EOF when an error occurs
+            // EOF is returned when either the end of the string is reached or
+            // when an error occurred. Since we are reading with bounds, we should
+            // only get EOF when an error occurs
         else if (EOF == result)
         {
             perror("sscanf");
@@ -276,6 +262,16 @@ cleanup:
     return NULL;
 }
 
-
-
+DEBUG_STATIC void print_b_array(hash_t * p_hash)
+{
+    if (NULL == p_hash)
+    {
+        return;
+    }
+    for (size_t i = 0; i < p_hash->size; i++)
+    {
+        printf("%02x", p_hash->array[i]);
+    }
+    printf("\n");
+}
 

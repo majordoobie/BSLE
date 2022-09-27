@@ -18,7 +18,7 @@ static verified_path_t * update_db_hash(const char * p_home_dir, verified_path_t
 static bool verify_magic(file_content_t * p_content);
 static bool get_stored_hash(file_content_t * p_content);
 static bool get_stored_data(file_content_t * p_content);
-static void populate_htable(htable_t * p_htable, file_content_t * p_contents);
+static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents);
 
 
 
@@ -139,7 +139,7 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
 
 
 
-    htable_destroy(htable, HT_FREE_PTR_TRUE, HT_FREE_PTR_TRUE);
+    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
     f_destroy_content(&p_db_contents);
     return 0;
 
@@ -155,23 +155,93 @@ ret_null:
     return -1;
 }
 
-static void populate_htable(htable_t * p_htable, file_content_t * p_contents)
+
+static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents)
 {
     if (NULL == p_htable)
     {
-        return;
+        goto ret_null;
     }
 
-    uint8_t perm = 0;
-    char username[MAX_USERNAME_LEN + 1] = {0};
-    char pw_hash[(SHA256_DIGEST_LENGTH * 2) + 1] = {0};
+    uint8_t perm;
+    char username[MAX_USERNAME_LEN + 1];
+    char pw_hash[(SHA256_DIGEST_LEN) + 1];
+    hash_t * p_hash;
+    char * p_username;
 
-    int res = sscanf((char *)p_contents->p_stream,
-           "%" stringify(MAX_USERNAME_LEN) "[^:]:%hhu:%" stringify(SHA256_DIGEST_LEN) "[^\n]",
-           username, &perm, pw_hash);
 
-    printf("Parsed %d tokens\n", res);
-    printf("User: %s\nPerm: %d\nHash: %s\n", username, perm, pw_hash);
+
+    int res = 0;
+    char * segment = (char *)p_contents->p_stream;
+    while (NULL != segment)
+    {
+        // Reset the copy variables for the next segment
+        perm = 0;
+        memset(username, 0, sizeof(username));
+        memset(pw_hash, 0, sizeof(pw_hash));
+        p_hash = NULL;
+        p_username = NULL;
+
+        // Find the username:perm:pw_hash from the segment and
+        // populate the variables
+        res = sscanf(segment,
+                     "%" stringify(MAX_USERNAME_LEN) "[^:]:%hhu:%"
+                     stringify(SHA256_DIGEST_LEN) "[^\n]",
+                     username, & perm, pw_hash);
+
+        // Verify that the tokens were parsed properly
+        if (EOF == res)
+        {
+            break;
+        }
+        else if (res != 3)
+        {
+            fprintf(stderr, "[!] Invalid db format detected\n");
+            goto ret_null;
+        }
+
+        // Convert the string hash to a hash_t object
+        p_hash = hex_char_to_byte_array(pw_hash, strlen(pw_hash));
+        if (NULL == p_hash)
+        {
+            fprintf(stderr, "[!] Unable to create memory for "
+                            "pw_hash\n");
+            goto ret_null;
+        }
+
+        // Create the username pointer
+        p_username = strdup(username);
+        if (UV_INVALID_ALLOC == verify_alloc(p_username))
+        {
+            goto cleanup_hash;
+        }
+
+        // Create the account object that will be saved into the hash table
+        user_account_t * p_user = (user_account_t *)malloc(sizeof(user_account_t));
+        if (UV_INVALID_ALLOC == verify_alloc(p_user))
+        {
+            goto cleanup_uname;
+        }
+        *p_user = (user_account_t){
+            .p_username = p_username,
+            .p_hash     = p_hash,
+            .permission = perm
+        };
+
+        htable_set(p_htable, p_username, p_user);
+
+        // Find the next segment with the new line feed and increment it by one
+        segment = memchr(segment, '\n', p_contents->stream_size);
+        segment = segment + 1;
+    }
+    return 0;
+
+cleanup_uname:
+    free(p_username);
+cleanup_hash:
+    hash_destroy(&p_hash);
+ret_null:
+    return -1;
 }
 
 /*!
@@ -187,6 +257,7 @@ static void populate_htable(htable_t * p_htable, file_content_t * p_contents)
 static bool get_stored_data(file_content_t * p_content)
 {
     if (!verify_magic(p_content))
+
     {
         goto ret_null;
     }
@@ -394,7 +465,7 @@ static verified_path_t * init_db_file(const char * p_home_dir)
     memcpy(p_buffer, &MAGIC_BYTES, 4);
     int write_bytes = sprintf((char *)(p_buffer + 4), DB_FMT, DEFAULT_USER, (uint8_t){ADMIN}, DEFAULT_HASH);
     //*NOTE* The - 4 is to exclude the magic bytes and the + 1 is to
-    // include the "\0". sprintf does not consider this a byte written
+    //include the "\0". sprintf does not consider this a byte written
     if ((array_size - 4) != (write_bytes + 1))
     {
         fprintf(stderr, "[!] Unable to properly write to db_file\n");
@@ -503,20 +574,19 @@ void free_value_callback(void * payload)
         return;
     }
     user_account_t * s = (user_account_t *)payload;
-    if (NULL != s->username)
+    if (NULL != s->p_username)
     {
-        free(s->username);
+        free(s->p_username);
     }
-    if (NULL != s->pw_hash)
+    if (NULL != s->p_hash)
     {
-        free(s->pw_hash);
+        hash_destroy(&s->p_hash);
     }
 
     *s = (user_account_t){
-        .username   = NULL,
-        .pw_hash    = NULL,
+        .p_username = NULL,
+        .p_hash     = NULL,
         .permission = 0,
-        .hash_size  = 0
     };
     free(s);
 }

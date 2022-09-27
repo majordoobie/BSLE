@@ -65,6 +65,18 @@ bool hash_hash_t_match(hash_t * p_lhash, hash_t * p_rhash);
  */
 bool hash_bytes_match(hash_t * p_hash, uint8_t * p_array, size_t array_size);
 
+/*!
+ * @brief Translate a hexadecimal hash back into a byte array. Every two
+ * characters of a hexadecimal array represents one byte. The function
+ * reads two characters at a time and converts it to the byte representation.
+ * The result is a byte array.
+ *
+ * @param p_hash_str Pointer to the hexadecimal string
+ * @param hash_size Size of the hexadecimal string
+ * @return hash_t object if successful otherwise NULL
+ */
+hash_t * hex_char_to_byte_array(const char * p_hash_str, size_t hash_size);
+
 // HEADER GUARD
 #ifdef __cplusplus
 }

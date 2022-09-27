@@ -1,5 +1,7 @@
 #ifndef BSLE_GALINDEZ_INCLUDE_SERVER_H_
 #define BSLE_GALINDEZ_INCLUDE_SERVER_H_
+#include <server_crypto.h>
+
 typedef enum
 {
     MIN_PORT            = 1024,       // Ports 1024+ are user defined ports
@@ -10,6 +12,7 @@ typedef enum
 #define MAX_USERNAME_LEN 20
 #define PERM_LEN 1
 #define SHA256_DIGEST_LEN 64
+
 
 typedef enum
 {
@@ -26,10 +29,9 @@ typedef enum
 
 typedef struct
 {
-    char *      username;
-    perms_t *   permission;
-    uint8_t *   pw_hash;
-    size_t      hash_size;
+    char *   p_username;
+    perms_t  permission;
+    hash_t * p_hash;
 } user_account_t;
 
 #endif //BSLE_GALINDEZ_INCLUDE_SERVER_H_
