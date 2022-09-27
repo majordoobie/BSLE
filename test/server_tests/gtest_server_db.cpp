@@ -5,6 +5,9 @@
 
 const char * home = "/tmp";
 
+/*!
+ * Test ability to properly parse the db file on disk with the defaults
+ */
 TEST(TestDBParsing, ParseDB)
 {
     // Remove the cape directory if it exists
@@ -19,11 +22,10 @@ TEST(TestDBParsing, ParseDB)
     EXPECT_NE(htable, nullptr); // Creates both
     db_shutdown(htable, p_home_dir);
     f_destroy_path(&p_home_dir);
-
-
-//    std::filesystem::remove_all("/tmp/.cape");
+    std::filesystem::remove_all("/tmp/.cape");
 }
-/*
+
+/*!
  * All these tests have to run in order since they access files on disk.
  * Therefore instead of making a test fixture (I tried, but it breaks when running
  * tests with -j) the tests are all within one test unit
@@ -81,4 +83,32 @@ TEST(TestDBInit, SingleThreadTests)
     htable = db_init(p_home_dir);
     EXPECT_EQ(htable, nullptr);
     std::filesystem::remove_all("/tmp/.cape");
+}
+
+/*!
+ * Test ability to properly parse the db file on disk with the defaults
+ */
+TEST(TestDBParsing, UserAdd)
+{
+    // Remove the cape directory if it exists
+    std::filesystem::remove_all("/tmp/.cape");
+    verified_path_t * p_home_dir = f_set_home_dir(home, strlen(home));
+
+    /*
+     * Test the successful creation of the ./cape dir and the .cape/.cape.db and
+     * .cape/.cape.hash
+     */
+    htable_t * htable = db_init(p_home_dir);
+    EXPECT_NE(htable, nullptr); // Creates both
+
+    server_error_codes_t res = db_create_user(htable, "VooDooRanger", "New Belgium", READ);
+    EXPECT_EQ(res, OP_SUCCESS);
+    res = db_create_user(htable, "VoodooRanger", "New Belgium", READ);
+    EXPECT_EQ(res, OP_SUCCESS);
+    res = db_create_user(htable, "Voodoo", "New Belgium Brew", READ);
+    EXPECT_EQ(res, OP_SUCCESS);
+
+    db_shutdown(htable, p_home_dir);
+    f_destroy_path(&p_home_dir);
+//    std::filesystem::remove_all("/tmp/.cape");
 }
