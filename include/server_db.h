@@ -17,7 +17,7 @@ extern "C" {
 
 htable_t * db_init(verified_path_t * p_home_dir);
 
-void db_shutdown(htable_t * htable, verified_path_t * p_home_dir);
+void db_shutdown(verified_path_t * p_home_dir, htable_t * htable);
 
 
 /*!
@@ -33,7 +33,8 @@ void db_shutdown(htable_t * htable, verified_path_t * p_home_dir);
  * exists. OP_CRED_RULE_ERROR if username or password trigger a length rule.
  * Otherwise a OP_FAILURE is returned if some internal error occurred.
  */
-server_error_codes_t db_create_user(htable_t * htable,
+server_error_codes_t db_create_user(verified_path_t * p_home_dir,
+                                    htable_t * htable,
                                     const char * username,
                                     const char * passwd,
                                     perms_t permission);

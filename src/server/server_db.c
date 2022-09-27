@@ -18,6 +18,7 @@ static bool verify_magic(file_content_t * p_content);
 static bool get_stored_hash(file_content_t * p_content);
 static bool get_stored_data(file_content_t * p_content);
 static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents);
+static void db_update_db(verified_path_t * p_home_dir, htable_t * htable);
 
 
 
@@ -176,12 +177,14 @@ ret_null:
  * exists. OP_CRED_RULE_ERROR if username or password trigger a length rule.
  * Otherwise a OP_FAILURE is returned if some internal error occurred.
  */
-server_error_codes_t db_create_user(htable_t * htable,
+server_error_codes_t db_create_user(verified_path_t * p_home_dir,
+                                    htable_t * htable,
                                     const char * username,
                                     const char * passwd,
                                     perms_t permission)
 {
     if ((NULL == htable)
+         || (NULL == p_home_dir)
          || (NULL == username)
          || (NULL == passwd)
          || (strlen(passwd) > MAX_PASSWD_LEN)
@@ -230,7 +233,8 @@ server_error_codes_t db_create_user(htable_t * htable,
 
     // Add the account to the database
     htable_set(htable, p_username, p_acct);
-
+    debug_print("[+] Added new user %s\n", p_username);
+    db_update_db(p_home_dir, htable);
     return OP_SUCCESS;
 
 cleanup_hash:
@@ -246,9 +250,20 @@ cred_failure:
     return OP_CRED_RULE_ERROR;
 }
 
-
-void db_shutdown(htable_t * htable, verified_path_t * p_home_dir)
+void db_shutdown(verified_path_t * p_home_dir, htable_t * htable)
 {
+
+    db_update_db(p_home_dir, htable);
+    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+}
+
+static void db_update_db(verified_path_t * p_home_dir, htable_t * htable)
+{
+    if ((NULL == htable) || (NULL == p_home_dir))
+    {
+        goto ret_null;
+    }
+
     size_t char_count       = 4; // Room for the 4 magic bytes
     size_t accounts         = 0; // Used to remove the '\0' from fprintf
     htable_iter_t * iter    = htable_get_iter(htable); // htable iter object
@@ -315,7 +330,7 @@ void db_shutdown(htable_t * htable, verified_path_t * p_home_dir)
         goto cleanup_buff;
     }
 
-    //*NOTE* That char_count - 1 is written this is to omit the \0 from fprintf
+    //*NOTE* That char_count - acc is written this is to omit the \0 from fprintf
     file_op_t status = f_write_file(p_db, p_buffer, (char_count - accounts));
     if (FILE_OP_FAILURE == status)
     {
@@ -334,7 +349,6 @@ void db_shutdown(htable_t * htable, verified_path_t * p_home_dir)
     free(p_buffer);
     f_destroy_path(&p_db);
     f_destroy_path(&p_hash_file);
-    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
     return;
 
 cleanup_file:
@@ -370,8 +384,6 @@ static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents)
     char pw_hash[(SHA256_DIGEST_LEN) + 1];
     hash_t * p_hash;
     char * p_username;
-
-
 
     int res = 0;
     char * segment = (char *)p_contents->p_stream;

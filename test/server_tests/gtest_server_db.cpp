@@ -20,7 +20,7 @@ TEST(TestDBParsing, ParseDB)
      */
     htable_t * htable = db_init(p_home_dir);
     EXPECT_NE(htable, nullptr); // Creates both
-    db_shutdown(htable, p_home_dir);
+    db_shutdown(p_home_dir, htable);
     f_destroy_path(&p_home_dir);
     std::filesystem::remove_all("/tmp/.cape");
 }
@@ -86,12 +86,14 @@ TEST(TestDBInit, SingleThreadTests)
 }
 
 /*!
- * Test ability to properly parse the db file on disk with the defaults
+ * Test ability to create a new user and update the database with the new
+ * user added
  */
 TEST(TestDBParsing, UserAdd)
 {
-    // Remove the cape directory if it exists
     std::filesystem::remove_all("/tmp/.cape");
+
+    // Remove the cape directory if it exists
     verified_path_t * p_home_dir = f_set_home_dir(home, strlen(home));
 
     /*
@@ -101,14 +103,17 @@ TEST(TestDBParsing, UserAdd)
     htable_t * htable = db_init(p_home_dir);
     EXPECT_NE(htable, nullptr); // Creates both
 
-    server_error_codes_t res = db_create_user(htable, "VooDooRanger", "New Belgium", READ);
+    server_error_codes_t res = db_create_user( p_home_dir, htable,
+                                               "VooDooRanger", "New Belgium", READ);
     EXPECT_EQ(res, OP_SUCCESS);
-    res = db_create_user(htable, "VoodooRanger", "New Belgium", READ);
+    res = db_create_user(p_home_dir, htable, "VoodooRanger", "New Belgium", READ);
     EXPECT_EQ(res, OP_SUCCESS);
-    res = db_create_user(htable, "Voodoo", "New Belgium Brew", READ);
+    res = db_create_user(p_home_dir, htable, "Voodoo", "New Belgium Brew", READ);
     EXPECT_EQ(res, OP_SUCCESS);
+    res = db_create_user(p_home_dir, htable, "Voodoo", "New Belgium Brew", READ);
+    EXPECT_EQ(res, OP_USER_EXISTS);
 
-    db_shutdown(htable, p_home_dir);
+    db_shutdown(p_home_dir, htable);
     f_destroy_path(&p_home_dir);
-//    std::filesystem::remove_all("/tmp/.cape");
+    std::filesystem::remove_all("/tmp/.cape");
 }
