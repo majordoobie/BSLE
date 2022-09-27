@@ -3,7 +3,6 @@
 #include <filesystem>
 #include <fstream>
 
-const char * home = "/tmp";
 
 /*!
  * Test ability to properly parse the db file on disk with the defaults
@@ -11,7 +10,9 @@ const char * home = "/tmp";
 TEST(TestDBParsing, ParseDB)
 {
     // Remove the cape directory if it exists
-    std::filesystem::remove_all("/tmp/.cape");
+    const char * home = "/tmp/test_parse_db";
+    std::filesystem::remove_all(home);
+    std::filesystem::create_directory(home);
     verified_path_t * p_home_dir = f_set_home_dir(home, strlen(home));
 
     /*
@@ -22,7 +23,7 @@ TEST(TestDBParsing, ParseDB)
     EXPECT_NE(htable, nullptr); // Creates both
     db_shutdown(p_home_dir, htable);
     f_destroy_path(&p_home_dir);
-    std::filesystem::remove_all("/tmp/.cape");
+    std::filesystem::remove_all(home);
 }
 
 /*!
@@ -33,7 +34,15 @@ TEST(TestDBParsing, ParseDB)
 TEST(TestDBInit, SingleThreadTests)
 {
     // Remove the cape directory if it exists
-    std::filesystem::remove_all("/tmp/.cape");
+    const char * home = "/tmp/test_single_thread_tests";
+    const char * home_cape = "/tmp/test_single_thread_tests/.cape";
+    const char * home_cape_db = "/tmp/test_single_thread_tests/.cape/.cape.db";
+    const char * home_cape_hash = "/tmp/test_single_thread_tests/.cape/.cape.hash";
+
+    std::filesystem::remove_all(home);
+    std::filesystem::create_directory(home);
+
+    // Remove the cape directory if it exists
     verified_path_t * p_home_dir = f_set_home_dir(home, strlen(home));
     htable_t * htable = NULL;
 
@@ -43,20 +52,21 @@ TEST(TestDBInit, SingleThreadTests)
      */
     htable = db_init(p_home_dir);
     EXPECT_NE(htable, nullptr); // Creates both
-    std::filesystem::remove_all("/tmp/.cape");
-
-    //Cleanup
+    std::filesystem::remove_all(home_cape);
+    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
 
     /*
      * Test that when one of the two mandatory files are missing that the
      * unit fails
      */
     htable = db_init(p_home_dir);
-    EXPECT_NE(htable, nullptr); // Fails because one of the files is missing
-    std::filesystem::remove("/tmp/.cape/.cape.db");
+    EXPECT_NE(htable, nullptr);
+    // Remove the db file to force a failure
+    std::filesystem::remove(home_cape_db);
+    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
     htable = db_init(p_home_dir);
     EXPECT_EQ(htable, nullptr); // Fails because one of the files is missing
-    std::filesystem::remove_all("/tmp/.cape");
+    std::filesystem::remove_all(home_cape);
 
 
     /*
@@ -64,12 +74,14 @@ TEST(TestDBInit, SingleThreadTests)
      * making it an invalid file
      */
     htable = db_init(p_home_dir);
-    EXPECT_EQ(htable, nullptr); // Fails because one of the files is missing
-    std::filesystem::remove("/tmp/.cape/.cape.hash");
-    std::ofstream output("/tmp/.cape/.cape.hash");
+    EXPECT_NE(htable, nullptr);
+    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+    // Remove the contents of the hash file to force a failure of hash match
+    std::filesystem::remove(home_cape_hash);
+    std::ofstream output(home_cape_hash);
     htable = db_init(p_home_dir);
     EXPECT_EQ(htable, nullptr); // Identifies that the db file DOES NOT have the MAGIC
-    std::filesystem::remove_all("/tmp/.cape");
+    std::filesystem::remove_all(home_cape);
 
 
     /*
@@ -77,12 +89,16 @@ TEST(TestDBInit, SingleThreadTests)
      * in the .cape.hash
      */
     htable = db_init(p_home_dir);
-    EXPECT_EQ(htable, nullptr); // Fails because one of the files is missing
-    std::filesystem::remove("/tmp/.cape/.cape.db");
+    EXPECT_NE(htable, nullptr);
+    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+
+    std::filesystem::remove(home_cape_db);
     output << 0xFFAAFABA;
     htable = db_init(p_home_dir);
     EXPECT_EQ(htable, nullptr);
-    std::filesystem::remove_all("/tmp/.cape");
+
+    std::filesystem::remove_all(home);
+    f_destroy_path(&p_home_dir);
 }
 
 /*!
@@ -91,7 +107,10 @@ TEST(TestDBInit, SingleThreadTests)
  */
 TEST(TestDBParsing, UserAdd)
 {
-    std::filesystem::remove_all("/tmp/.cape");
+    // Remove the cape directory if it exists
+    const char * home = "/tmp/test_user_add";
+    std::filesystem::remove_all(home);
+    std::filesystem::create_directory(home);
 
     // Remove the cape directory if it exists
     verified_path_t * p_home_dir = f_set_home_dir(home, strlen(home));
@@ -121,5 +140,5 @@ TEST(TestDBParsing, UserAdd)
     db_shutdown(p_home_dir, htable);
 
     f_destroy_path(&p_home_dir);
-    std::filesystem::remove_all("/tmp/.cape");
+    std::filesystem::remove_all(home);
 }
