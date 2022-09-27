@@ -17,6 +17,7 @@ extern "C" {
 #endif // End of DEBUG_PRINT
 
 #include <stdio.h>
+#include <errno.h>
 
 
 /*

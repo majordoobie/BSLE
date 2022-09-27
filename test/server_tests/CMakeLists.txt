@@ -6,7 +6,7 @@ add_executable(
 target_link_libraries(
         gtest_server_args
         PUBLIC
-        server_backend
+        server_ctrl
 )
 
 
@@ -18,10 +18,10 @@ add_executable(
 target_link_libraries(
         gtest_server_crypto
         PUBLIC
-        server_crypto
+        server_file_api
 )
 
-# Unit test the server file api functions (it is contained within server_crypto)
+# Unit test the server file api functions (it is contained within server_file_api)
 add_executable(
         gtest_server_file_api
         gtest_server_file_api.cpp
@@ -29,11 +29,22 @@ add_executable(
 target_link_libraries(
         gtest_server_file_api
         PUBLIC
-        server_crypto
+        server_file_api
+)
+
+# Unit test the server backend
+add_executable(
+        gtest_server_db
+        gtest_server_db.cpp
+)
+target_link_libraries(
+        gtest_server_db
+        PUBLIC
+        server_file_api
 )
 
 
-
+GTest_add_target(gtest_server_db)
 GTest_add_target(gtest_server_crypto)
 GTest_add_target(gtest_server_file_api)
 GTest_add_target(gtest_server_args)

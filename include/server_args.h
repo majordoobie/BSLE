@@ -13,14 +13,15 @@ extern "C" {
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <server_ctrl.h>
 #include <utils.h>
+#include <server.h>
+#include <server_file_api.h>
 
 typedef struct
 {
-    uint32_t    port;
-    uint32_t    timeout;
-    char *      p_home_directory;
+    uint32_t            port;
+    uint32_t            timeout;
+    verified_path_t *   p_home_directory;
 } args_t;
 
 void free_args(args_t ** pp_args);

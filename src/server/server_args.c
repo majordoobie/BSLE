@@ -3,7 +3,7 @@
 DEBUG_STATIC uint32_t get_port(char * port);
 DEBUG_STATIC uint32_t get_timeout(char * timeout);
 static uint8_t str_to_long(char * str_num, long int * int_val);
-char * get_home_dir(char * home_dir);
+verified_path_t * get_home_dir(char * home_dir);
 static void print_usage(void);
 /*!
  * @brief Free the args object
@@ -180,7 +180,7 @@ static void print_usage(void)
  * @param home_dir Path to the home directory for the server
  * @return Pointer to the allocated string or NULL if failure
  */
-char * get_home_dir(char * home_dir)
+verified_path_t * get_home_dir(char * home_dir)
 {
     struct stat stat_buff;
     if (-1 == stat(home_dir, &stat_buff))
@@ -206,12 +206,12 @@ char * get_home_dir(char * home_dir)
     }
 
     // Allocate the memory for the path and return the pointer to the path
-    char * path = realpath(home_dir, NULL);
-    if (UV_INVALID_ALLOC == verify_alloc(path))
+    verified_path_t * p_home_dir = f_set_home_dir(home_dir, strlen(home_dir));
+    if (NULL == p_home_dir)
     {
         return NULL;
     }
-    return path;
+    return p_home_dir;
 }
 
 /*!
