@@ -23,7 +23,7 @@ void free_args(args_t ** pp_args)
 
     if (NULL != p_args->p_home_directory)
     {
-        free(p_args->p_home_directory);
+        f_destroy_path(&p_args->p_home_directory);
     }
 
     // NULL out values

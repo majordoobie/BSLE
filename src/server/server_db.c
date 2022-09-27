@@ -18,6 +18,7 @@ static bool verify_magic(file_content_t * p_content);
 static bool get_stored_hash(file_content_t * p_content);
 static bool get_stored_data(file_content_t * p_content);
 static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents);
+static void db_update_db(verified_path_t * p_home_dir, htable_t * htable);
 
 
 
@@ -163,10 +164,109 @@ ret_null:
     return NULL;
 }
 
-void db_shutdown(htable_t * htable, verified_path_t * p_home_dir)
+/*!
+ * @brief Function attempts to create a new user and add it to the user
+ * database. If the username or password do not meet the size criteria a
+ * credential error is returned.
+ *
+ * @param htable Pointer to the hashtable user database object
+ * @param username Pointer to the username
+ * @param passwd Pointer to the password
+ * @param permission Permission of the new user
+ * @return OP_SUCCESS upon successful creation. OP_USER_EXISTS if user already
+ * exists. OP_CRED_RULE_ERROR if username or password trigger a length rule.
+ * Otherwise a OP_FAILURE is returned if some internal error occurred.
+ */
+server_error_codes_t db_create_user(verified_path_t * p_home_dir,
+                                    htable_t * htable,
+                                    const char * username,
+                                    const char * passwd,
+                                    perms_t permission)
 {
+    if ((NULL == htable)
+         || (NULL == p_home_dir)
+         || (NULL == username)
+         || (NULL == passwd)
+         || (strlen(passwd) > MAX_PASSWD_LEN)
+         || (strlen(passwd) < MIN_PASSWD_LEN)
+         || (strlen(username) > MAX_USERNAME_LEN)
+         || (strlen(username) < MIN_USERNAME_LEN)
+    )
+    {
+        debug_print("[!] User creation:\n\tUsername: %s - size: "
+                    "%ld\n\tPassword: %s - size: %ld\n[!] Did not meet the "
+                    "size criteria\n", username, strlen(username),
+                    passwd, strlen(passwd));
+        goto cred_failure;
+    }
+
+    // Check if the user already exists in the database, if it does return err
+    if (htable_key_exists(htable, (void *)username))
+    {
+        goto user_exists;
+    }
+
+    // Create the pointer for the username
+    char * p_username = strdup(username);
+    if (UV_INVALID_ALLOC == verify_alloc(p_username))
+    {
+        goto ret_null;
+    }
+
+    // Hash the users password
+    hash_t * p_hash = hash_byte_array((uint8_t *)passwd, strlen(passwd));
+    if (NULL == p_hash)
+    {
+        goto cleanup_username;
+    }
+
+    user_account_t * p_acct = (user_account_t *)malloc(sizeof(user_account_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_acct))
+    {
+        goto cleanup_hash;
+    }
+    *p_acct = (user_account_t){
+        .p_username = p_username,
+        .permission = permission,
+        .p_hash     = p_hash
+    };
+
+    // Add the account to the database
+    htable_set(htable, p_username, p_acct);
+    debug_print("[+] Added new user %s\n", p_username);
+    db_update_db(p_home_dir, htable);
+    return OP_SUCCESS;
+
+cleanup_hash:
+    hash_destroy(&p_hash);
+cleanup_username:
+    free(p_username);
+    p_username = NULL;
+ret_null:
+    return OP_FAILURE;
+user_exists:
+    return OP_USER_EXISTS;
+cred_failure:
+    return OP_CRED_RULE_ERROR;
+}
+
+void db_shutdown(verified_path_t * p_home_dir, htable_t * htable)
+{
+
+    db_update_db(p_home_dir, htable);
+    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+}
+
+static void db_update_db(verified_path_t * p_home_dir, htable_t * htable)
+{
+    if ((NULL == htable) || (NULL == p_home_dir))
+    {
+        goto ret_null;
+    }
+
     size_t char_count       = 4; // Room for the 4 magic bytes
-    htable_iter_t * iter    = htable_get_iter(htable);
+    size_t accounts         = 0; // Used to remove the '\0' from fprintf
+    htable_iter_t * iter    = htable_get_iter(htable); // htable iter object
     htable_entry_t * entry  = htable_iter_get_entry(iter);
     user_account_t * p_acct = NULL;
 
@@ -210,7 +310,8 @@ void db_shutdown(htable_t * htable, verified_path_t * p_home_dir)
         }
 
         int writes = sprintf((char *)(p_buffer + offset), "%s:%hhu:%s\n", p_acct->p_username, p_acct->permission, pw_hash);
-        offset += (writes - 1); // fprintf adds a '\0'. Do not account for it on the next write
+        offset += writes;
+        accounts++;
         entry = htable_iter_get_next(iter);
     }
     htable_destroy_iter(iter);
@@ -229,8 +330,8 @@ void db_shutdown(htable_t * htable, verified_path_t * p_home_dir)
         goto cleanup_buff;
     }
 
-    //*NOTE* That char_count - 1 is written this is to omit the \0 from fprintf
-    file_op_t status = f_write_file(p_db, p_buffer, (char_count - 1));
+    //*NOTE* That char_count - acc is written this is to omit the \0 from fprintf
+    file_op_t status = f_write_file(p_db, p_buffer, (char_count - accounts));
     if (FILE_OP_FAILURE == status)
     {
         goto cleanup_file;
@@ -248,7 +349,6 @@ void db_shutdown(htable_t * htable, verified_path_t * p_home_dir)
     free(p_buffer);
     f_destroy_path(&p_db);
     f_destroy_path(&p_hash_file);
-    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
     return;
 
 cleanup_file:
@@ -258,8 +358,6 @@ cleanup_buff:
 ret_null:
     return;
 }
-
-
 
 /*!
  * @brief Function iterates over the user account segments represented by the
@@ -286,8 +384,6 @@ static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents)
     char pw_hash[(SHA256_DIGEST_LEN) + 1];
     hash_t * p_hash;
     char * p_username;
-
-
 
     int res = 0;
     char * segment = (char *)p_contents->p_stream;
