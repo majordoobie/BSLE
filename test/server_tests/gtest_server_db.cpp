@@ -3,6 +3,79 @@
 #include <filesystem>
 #include <fstream>
 
+// Variables are used to synchronize the threads in ctest -j $(nproc)
+static volatile std::atomic_uint clear = 0;
+static unsigned int tests = 1;
+
+class DBUserActions : public ::testing::Test
+{
+ public:
+    htable_t * user_db;
+    verified_path_t * p_home_dir;
+    const std::filesystem::path test_dir{"/tmp/DBActions"};
+ protected:
+    void SetUp() override
+    {
+        if (!std::filesystem::exists(test_dir))
+        {
+            std::filesystem::create_directory(test_dir);
+        }
+        this->p_home_dir = f_set_home_dir(test_dir.c_str(), test_dir.string().size());
+        this->user_db = db_init(this->p_home_dir);
+
+        server_error_codes_t res = db_create_user(this->p_home_dir,
+                                                  this->user_db,
+                                                   "VooDooRanger",
+                                                   "New Belgium", READ);
+        EXPECT_EQ(res, OP_SUCCESS);
+
+        res = db_create_user(this->p_home_dir,
+                             this->user_db,
+                             "VDooRanger Imperial",
+                             "New Belgium CO", READ);
+        EXPECT_EQ(res, OP_SUCCESS);
+
+        res = db_create_user(this->p_home_dir,
+                             this->user_db,
+                             "Fat Tire",
+                             "New Belgium CO Denver", READ_WRITE);
+        EXPECT_EQ(res, OP_SUCCESS);
+
+        res = db_create_user(this->p_home_dir,
+                             this->user_db,
+                             "Juicy Haze",
+                             "NB North Carolina", READ_WRITE);
+        EXPECT_EQ(res, OP_SUCCESS);
+    }
+
+    void TearDown() override
+    {
+        f_destroy_path(&this->p_home_dir);
+        htable_destroy(this->user_db, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+
+        // Atomic function to clear the test directory. This is used to
+        // synchronize the threads for ctest -j $(nrpoc)
+        // note that we are evaluating tests - 1 because fetch_add returns the
+        // previous value before it was incremented
+        long long int val = clear.fetch_add(1);
+        if (val >= (tests - 1))
+        {
+            remove_all(this->test_dir);
+        }
+    }
+};
+
+TEST_F(DBUserActions, TestUserExists)
+{
+
+    server_error_codes_t res = db_create_user(this->p_home_dir,
+                                              this->user_db,
+                                              "VooDooRanger",
+                                              "New Belgium", READ);
+    EXPECT_EQ(res, OP_USER_EXISTS);
+}
+
+
 
 /*!
  * Test ability to properly parse the db file on disk with the defaults

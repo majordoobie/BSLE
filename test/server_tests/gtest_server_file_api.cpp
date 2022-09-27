@@ -61,8 +61,12 @@ TEST_P(ServerFileApiTest, TestFileJoining)
     // Cleaup if the tests are over
     if (parent == "NOT_TEST")
     {
-        long long res = clear.fetch_add(1);
-        if (res >= tests)
+        // Atomic function to clear the test directory. This is used to
+        // synchronize the threads for ctest -j $(nrpoc)
+        // note that we are evaluating tests - 1 because fetch_add returns the
+        // previous value before it was incremented
+        long long int val = clear.fetch_add(1);
+        if (val >= (tests - 1))
         {
             std::filesystem::remove_all("/tmp/dir");
         }
@@ -110,8 +114,12 @@ TEST_P(ServerFileApiTest, TestFileMayExist)
     // Cleaup if the tests are over
     if (parent == "NOT_TEST")
     {
-        long long res = clear.fetch_add(1);
-        if (res >= tests)
+        // Atomic function to clear the test directory. This is used to
+        // synchronize the threads for ctest -j $(nrpoc)
+        // note that we are evaluating tests - 1 because fetch_add returns the
+        // previous value before it was incremented
+        long long int val = clear.fetch_add(1);
+        if (val >= (tests - 1))
         {
             std::filesystem::remove_all("/tmp/dir");
         }
