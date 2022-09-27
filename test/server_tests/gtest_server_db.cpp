@@ -75,6 +75,16 @@ TEST_F(DBUserActions, TestUserExists)
     EXPECT_EQ(res, OP_USER_EXISTS);
 }
 
+TEST_F(DBUserActions, Dud)
+{
+    server_error_codes_t res = db_create_user(this->p_home_dir,
+                                              this->user_db,
+                                              "VooDooRanger",
+                                              "New Belgium", READ);
+    EXPECT_EQ(res, OP_USER_EXISTS);
+
+}
+
 
 
 /*!
