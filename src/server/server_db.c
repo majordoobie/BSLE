@@ -9,12 +9,11 @@ static const char * DB_HASH         = ".cape/.cape.hash";
 static const char * DEFAULT_USER    = "admin";
 static const char * DEFAULT_HASH    = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
 static const char * DB_FMT          = "%s:%hhd:%s\n";
-//static const char * DB_SCAN_FMT     = "%s:%hhd:%s[^\n]";
 static const uint32_t MAGIC_BYTES   = 0xFFAAFABA;
 
-static verified_path_t * init_db_dir(char * p_home_dir);
-static verified_path_t * init_db_file(const char * p_home_dir);
-static verified_path_t * update_db_hash(const char * p_home_dir, verified_path_t * p_db_file);
+static verified_path_t * init_db_dir(verified_path_t * p_home_dir);
+static verified_path_t * init_db_file(verified_path_t * p_home_dir);
+static verified_path_t * update_db_hash(verified_path_t * p_home_dir, verified_path_t * p_db_file);
 static bool verify_magic(file_content_t * p_content);
 static bool get_stored_hash(file_content_t * p_content);
 static bool get_stored_data(file_content_t * p_content);
@@ -24,19 +23,30 @@ static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents);
 
 // These functions are used for the creation of the hashtable that stores
 // the user information
-void free_key_callback(void * key);
 void free_value_callback(void * payload);
 static uint64_t hash_callback(void * key);
 static htable_match_t compare_callback(void * left_key, void * right_key);
 
-int8_t hash_init_db(char * p_home_dir, size_t dir_length)
+/*!
+ * @brief This beefy function aggregates several internal API calls into one
+ * "null checking" function to ensure that all APIs operated successfully.
+ * Upon successful execution, a hashtable object is returned holding all
+ * the registered users along with their password hash and user permissions.
+ *
+ * @param p_home_dir Path to the home directory of the server
+ * @return Hashtable object if successful or NULL if failure
+ */
+htable_t * db_init(verified_path_t * p_home_dir)
 {
     // Check if the ${HOME_DIR}/.cape directory exists; If not, create it
-    verified_path_t * p_db_dir = f_path_resolve(p_home_dir, DB_DIR);
+    verified_path_t * p_db_dir = f_ver_path_resolve(p_home_dir, DB_DIR);
     if (NULL == p_db_dir)
     {
+        char home_dir[PATH_MAX] = {0};
+        f_path_repr(p_home_dir, home_dir, PATH_MAX);
+
         debug_print("[!] Database dir %s/%s does not exist. Attempting to create"
-                    " it.\n", p_home_dir, DB_DIR);
+                    " it.\n", home_dir, DB_DIR);
         p_db_dir = init_db_dir(p_home_dir);
         if (NULL == p_db_dir)
         {
@@ -48,8 +58,8 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
 
     // With the ${HOME_DIR}/.cape directory in existence, read the .cape.hash
     // and the .cape.db
-    verified_path_t * p_hash_file = f_path_resolve(p_home_dir, DB_HASH);
-    verified_path_t * p_db_file = f_path_resolve(p_home_dir, DB_NAME);
+    verified_path_t * p_hash_file = f_ver_path_resolve(p_home_dir, DB_HASH);
+    verified_path_t * p_db_file = f_ver_path_resolve(p_home_dir, DB_NAME);
     if ((NULL == p_hash_file) && (NULL == p_db_file))
     {
         debug_print("%s\n", "[!] The database files do not exist, attempting to "
@@ -72,12 +82,14 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
     {
         const char * missing = (NULL == p_hash_file) ? DB_NAME : DB_HASH;
         const char * exist = (NULL != p_hash_file) ? DB_NAME : DB_HASH;
+        char home_dir[PATH_MAX] = {0};
+        f_path_repr(p_home_dir, home_dir, PATH_MAX);
 
         fprintf(stderr, "[!] The \"%s\" file missing while \"%s\" "
                         "exist in the \"%s/%s\" home directory. Either return "
                         "the \"%s\" file or remove \"%s\" before starting "
                         "the server.\n",
-                        missing, exist, p_home_dir, DB_DIR, missing, exist);
+                        missing, exist, home_dir, DB_DIR, missing, exist);
         goto cleanup_hash;
     }
 
@@ -127,7 +139,7 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
 
     // Create the hashtable object that is going to store the users
     htable_t * htable = htable_create(hash_callback, compare_callback,
-                                      free_key_callback, free_value_callback);
+                                      NULL, free_value_callback);
     if (NULL == htable)
     {
         fprintf(stderr, "[!] Failed to create the hashtable"
@@ -136,12 +148,8 @@ int8_t hash_init_db(char * p_home_dir, size_t dir_length)
     }
 
     populate_htable(htable, p_db_contents);
-
-
-
-    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
     f_destroy_content(&p_db_contents);
-    return 0;
+    return htable;
 
 cleanup_hash_content:
     f_destroy_content(&p_hash_contents);
@@ -152,10 +160,120 @@ cleanup_hash:
 cleanup_db:
     f_destroy_path(&p_db_file);
 ret_null:
-    return -1;
+    return NULL;
+}
+
+void db_shutdown(htable_t * htable, verified_path_t * p_home_dir)
+{
+    size_t char_count       = 4; // Room for the 4 magic bytes
+    htable_iter_t * iter    = htable_get_iter(htable);
+    htable_entry_t * entry  = htable_iter_get_entry(iter);
+    user_account_t * p_acct = NULL;
+
+    // Iterate over the hash table to calculate the number of bytes needed
+    // to create the write buffer
+    while (NULL != entry)
+    {
+        p_acct = (user_account_t *)entry->value;
+        char_count += strlen(p_acct->p_username);
+        char_count += p_acct->p_hash->size * 2; // hash stored in hex so times 2
+        char_count += 5; // ":" + ":" + "\n" + perm + fprintf('\0')
+        entry = htable_iter_get_next(iter);
+    }
+    htable_destroy_iter(iter);
+
+    // Crete the buffer that is going to be used to write to disk
+    uint8_t * p_buffer = (uint8_t *)calloc(char_count, sizeof(uint8_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_buffer))
+    {
+        fprintf(stderr, "[!] Unable to save the db to disk\n");
+        goto ret_null;
+    }
+
+    // First thing is to save the magic bytes into the array
+    memcpy(p_buffer, &MAGIC_BYTES, 4);
+    char pw_hash[(SHA256_DIGEST_LEN) + 1];
+    int offset = 4;
+
+    // Iterate over the htable again to grab the data
+    iter = htable_get_iter(htable);
+    entry = htable_iter_get_entry(iter);
+    while (NULL != entry)
+    {
+        memset(pw_hash, 0, sizeof(pw_hash));
+        p_acct = (user_account_t *)entry->value;
+
+        int hash_offset = 0;
+        for (size_t i = 0; i < p_acct->p_hash->size; i++)
+        {
+            hash_offset += sprintf((pw_hash + hash_offset), "%02x", p_acct->p_hash->array[i]);
+        }
+
+        int writes = sprintf((char *)(p_buffer + offset), "%s:%hhu:%s\n", p_acct->p_username, p_acct->permission, pw_hash);
+        offset += (writes - 1); // fprintf adds a '\0'. Do not account for it on the next write
+        entry = htable_iter_get_next(iter);
+    }
+    htable_destroy_iter(iter);
+
+    // Attempt to resolve the path to the db file; This should never fail at
+    // this point, but you can never be too sure
+    verified_path_t * p_db = f_ver_valid_resolve(p_home_dir, DB_NAME);
+    if (NULL == p_db)
+    {
+        char home_dir[PATH_MAX] = {0};
+        f_path_repr(p_home_dir, home_dir, PATH_MAX);
+
+        fprintf(stderr, "[!] Could not create the database file "
+                        "in %s/%s you may have to create it yourself\n",
+                home_dir, DB_NAME);
+        goto cleanup_buff;
+    }
+
+    //*NOTE* That char_count - 1 is written this is to omit the \0 from fprintf
+    file_op_t status = f_write_file(p_db, p_buffer, (char_count - 1));
+    if (FILE_OP_FAILURE == status)
+    {
+        goto cleanup_file;
+    }
+    debug_print("%s\n", "[+] Successfully updated the .cape.db file");
+
+    verified_path_t * p_hash_file = update_db_hash(p_home_dir, p_db);
+    if (NULL == p_hash_file)
+    {
+        fprintf(stderr, "[!] Failed to update the .cape.hash file\n");
+        goto cleanup_file;
+    }
+
+    // Clean up
+    free(p_buffer);
+    f_destroy_path(&p_db);
+    f_destroy_path(&p_hash_file);
+    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+    return;
+
+cleanup_file:
+    f_destroy_path(&p_db);
+cleanup_buff:
+    free(p_buffer);
+ret_null:
+    return;
 }
 
 
+
+/*!
+ * @brief Function iterates over the user account segments represented by the
+ *
+ *      `user_name:user_perm:passwd_hash\n`
+ *
+ * and populates the user hashtable. The Hashtable is used as a in memory
+ * database of users to verify their passwords and ensure that their
+ * requested actions are allowed based on their user permission.
+ *
+ * @param p_htable Pointer to the hashtable object holding the registered users
+ * @param p_contents Pointer to the db contents
+ * @return 0 if successful or -1 if there was a parsing error
+ */
 static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents)
 {
     if (NULL == p_htable)
@@ -341,13 +459,13 @@ ret_null:
 
 /*!
  * @brief Update the .cape.hash file with the hash that represents the
- * .cape.db file. This is used to ensure that the file has not been corrupted
+ * .cape.db file. This is used to ensure that the file has not been corrupted.
  *
  * @param p_home_dir Pointer to the servers home directory
  * @param p_db_file verified_path_t object to the .cape.db file
  * @return verified_path_t object representing the .cape.hash or NULL if error
  */
-static verified_path_t * update_db_hash(const char * p_home_dir, verified_path_t * p_db_file)
+static verified_path_t * update_db_hash(verified_path_t * p_home_dir, verified_path_t * p_db_file)
 {
     FILE * h_db_file = f_open_file(p_db_file, "r");
     if (NULL == h_db_file)
@@ -394,7 +512,7 @@ static verified_path_t * update_db_hash(const char * p_home_dir, verified_path_t
     }
 
     // Get a verified path for the hash file to write the hash data to
-    verified_path_t * p_hash_file = f_valid_resolve(p_home_dir, DB_HASH);
+    verified_path_t * p_hash_file = f_ver_valid_resolve(p_home_dir, DB_HASH);
     if (NULL == p_hash_file)
     {
         fprintf(stderr, "[!] Could not create the database file "
@@ -439,16 +557,18 @@ ret_null:
  * @param p_home_dir Pointer to the home directory of the server
  * @return If successful, a verified_path_t object is returned otherwise NULL
  */
-static verified_path_t * init_db_file(const char * p_home_dir)
+static verified_path_t * init_db_file(verified_path_t * p_home_dir)
 {
     // Attempt to resolve the path to the db file; This should never fail at
     // this point, but you can never be too sure
-    verified_path_t * p_db = f_valid_resolve(p_home_dir, DB_NAME);
+    verified_path_t * p_db = f_ver_valid_resolve(p_home_dir, DB_NAME);
     if (NULL == p_db)
     {
+        char home_dir[PATH_MAX] = {0};
+        f_path_repr(p_home_dir, home_dir, PATH_MAX);
         fprintf(stderr, "[!] Could not create the database file "
                         "in %s/%s you may have to create it yourself\n",
-                p_home_dir, DB_NAME);
+                home_dir, DB_NAME);
         goto ret_null;
     }
 
@@ -472,7 +592,8 @@ static verified_path_t * init_db_file(const char * p_home_dir)
         goto cleanup_array;
     }
 
-    file_op_t status = f_write_file(p_db, p_buffer, array_size);
+    //*NOTE* That array_size - 1 is written this is to omit the \0 from fprintf
+    file_op_t status = f_write_file(p_db, p_buffer, array_size - 1);
     if (FILE_OP_FAILURE == status)
     {
         goto cleanup_array;
@@ -499,9 +620,9 @@ ret_null:
  * @param p_home_dir Pointer to the home directory of the server
  * @return verified_path_t object if successful, otherwise NULL
  */
-static verified_path_t * init_db_dir(char * p_home_dir)
+static verified_path_t * init_db_dir(verified_path_t * p_home_dir)
 {
-    verified_path_t * p_db_dir = f_valid_resolve(p_home_dir, DB_DIR);
+    verified_path_t * p_db_dir = f_ver_valid_resolve(p_home_dir, DB_DIR);
     if (NULL == p_db_dir)
     {
         goto ret_null;
@@ -588,17 +709,7 @@ void free_value_callback(void * payload)
         .p_hash     = NULL,
         .permission = 0,
     };
-    free(s);
-}
 
-/*!
- * @brief Callback is used for the user_htable
- *
- * @param payload Pointer to the key object stored in the hash table
- */
-void free_key_callback(void * key)
-{
-    char * s = (char *)key;
     free(s);
     s = NULL;
 }

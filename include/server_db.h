@@ -15,8 +15,9 @@ extern "C" {
 #include <server_crypto.h>
 #include <hashtable.h>
 
-int8_t hash_init_db(char * p_home_dir, size_t dir_length);
+htable_t * db_init(verified_path_t * p_home_dir);
 
+void db_shutdown(htable_t * htable, verified_path_t * p_home_dir);
 
 // HEADER GUARD
 #ifdef __cplusplus

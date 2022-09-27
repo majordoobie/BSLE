@@ -150,8 +150,6 @@ hash_t * hash_byte_array(uint8_t * p_byte_array, size_t length)
         .array = p_hash_digest,
         .size = SHA256_DIGEST_LENGTH
     };
-
-    print_b_array(p_hash);
     return p_hash;
 
 cleanup:

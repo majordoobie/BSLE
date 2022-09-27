@@ -37,6 +37,30 @@ typedef struct
 } file_content_t;
 
 /*!
+ * @brief Access to the members of verified_path_t is private. But the need
+ * to print the verified_path_t may be needed for debugging. This function
+ * writes the path into the buffer provided.
+ *
+ * It is best to allocate the space needed with PATH_MAX
+ *         char repr[PATH_MAX] = {0};
+ *         f_path_repr(p_home_dir, repr, PATH_MAX)
+ *
+ * @param p_path Verified path object
+ */
+void f_path_repr(verified_path_t * p_path, char * path_repr, size_t path_size);
+
+/*!
+ * @brief Function creates a verified path representing the home dir. A
+ * verified path is a object that contains the path to path that exists
+ * and exists with in the home dir.
+ *
+ * @param p_home_dir Pointer to the home dir string
+ * @param dir_size Size of the home dir string
+ * @return Verified path if path exists else NULL
+ */
+verified_path_t * f_set_home_dir(const char * p_home_dir, size_t dir_size);
+
+/*!
  * @brief Function verifies that the combination of the joining of the parent
  * and child paths do not exceed the path character limit.
  *
@@ -53,6 +77,16 @@ typedef struct
 verified_path_t * f_path_resolve(const char * p_home_dir, const char * p_child);
 
 /*!
+ * @brief Exact same function as f_path_resolve except that a verified path
+ * of the homedir is used.
+ *
+ * @param p_home_dir verified_path_t object of the home dir
+ * @param p_child Pointer to the child path to resolve
+ * @return Verified path if the path is valid or else NULL
+ */
+verified_path_t * f_ver_path_resolve(verified_path_t * p_home_dir, const char * p_child);
+
+/*!
  * @brief Just like `f_path_resolve`, the function checks to ensure that the
  * path created is a valid path. The only difference is that this function
  * checks if the final path joined can possibly be created. This is done
@@ -66,6 +100,17 @@ verified_path_t * f_path_resolve(const char * p_home_dir, const char * p_child);
  * but outside the home directory.
  */
 verified_path_t * f_valid_resolve(const char * p_home_dir, const char * p_child);
+
+/*!
+ * @brief Exact same function as f_valid_resolve except that a verified path
+ * of the homedir is used.
+ *
+ * @param p_home_dir verified_path_t object of the home dir
+ * @param p_child Pointer to the child path to resolve
+ * @return Verified path if the path is valid or else NULL
+ */
+verified_path_t * f_ver_valid_resolve(verified_path_t * p_home_dir, const char * p_child);
+
 
 /*!
  * @brief Destroy the verified_path_t object

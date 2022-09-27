@@ -9,13 +9,17 @@ TEST(TestDBParsing, ParseDB)
 {
     // Remove the cape directory if it exists
     std::filesystem::remove_all("/tmp/.cape");
+    verified_path_t * p_home_dir = f_set_home_dir(home, strlen(home));
 
     /*
      * Test the successful creation of the ./cape dir and the .cape/.cape.db and
      * .cape/.cape.hash
      */
-    int res = hash_init_db((char *)home, strlen(home));
-    EXPECT_EQ(res, 0); // Creates both
+    htable_t * htable = db_init(p_home_dir);
+    EXPECT_NE(htable, nullptr); // Creates both
+    db_shutdown(htable, p_home_dir);
+    f_destroy_path(&p_home_dir);
+
 
 //    std::filesystem::remove_all("/tmp/.cape");
 }
@@ -28,14 +32,15 @@ TEST(TestDBInit, SingleThreadTests)
 {
     // Remove the cape directory if it exists
     std::filesystem::remove_all("/tmp/.cape");
-    int res = 0;
+    verified_path_t * p_home_dir = f_set_home_dir(home, strlen(home));
+    htable_t * htable = NULL;
 
     /*
      * Test the successful creation of the ./cape dir and the .cape/.cape.db and
      * .cape/.cape.hash
      */
-    res = hash_init_db((char *)home, strlen(home));
-    EXPECT_EQ(res, 0); // Creates both
+    htable = db_init(p_home_dir);
+    EXPECT_NE(htable, nullptr); // Creates both
     std::filesystem::remove_all("/tmp/.cape");
 
     //Cleanup
@@ -44,11 +49,11 @@ TEST(TestDBInit, SingleThreadTests)
      * Test that when one of the two mandatory files are missing that the
      * unit fails
      */
-    res = hash_init_db((char *)home, strlen(home));
-    EXPECT_EQ(res, 0); // Fails because one of the files is missing
+    htable = db_init(p_home_dir);
+    EXPECT_NE(htable, nullptr); // Fails because one of the files is missing
     std::filesystem::remove("/tmp/.cape/.cape.db");
-    res = hash_init_db((char *)home, strlen(home));
-    EXPECT_EQ(res, -1); // Fails because one of the files is missing
+    htable = db_init(p_home_dir);
+    EXPECT_EQ(htable, nullptr); // Fails because one of the files is missing
     std::filesystem::remove_all("/tmp/.cape");
 
 
@@ -56,12 +61,12 @@ TEST(TestDBInit, SingleThreadTests)
      * Expect failure when the hash file does NOT have the magic bytes
      * making it an invalid file
      */
-    res = hash_init_db((char *)home, strlen(home));
-    EXPECT_EQ(res, 0); // Fails because one of the files is missing
+    htable = db_init(p_home_dir);
+    EXPECT_EQ(htable, nullptr); // Fails because one of the files is missing
     std::filesystem::remove("/tmp/.cape/.cape.hash");
     std::ofstream output("/tmp/.cape/.cape.hash");
-    res = hash_init_db((char *)home, strlen(home));
-    EXPECT_EQ(res, -1); // Identifies that the db file DOES NOT have the MAGIC
+    htable = db_init(p_home_dir);
+    EXPECT_EQ(htable, nullptr); // Identifies that the db file DOES NOT have the MAGIC
     std::filesystem::remove_all("/tmp/.cape");
 
 
@@ -69,11 +74,11 @@ TEST(TestDBInit, SingleThreadTests)
      * Expect failure due to the hash of the .cape.db not matching the hash
      * in the .cape.hash
      */
-    res = hash_init_db((char *)home, strlen(home));
-    EXPECT_EQ(res, 0); // Fails because one of the files is missing
+    htable = db_init(p_home_dir);
+    EXPECT_EQ(htable, nullptr); // Fails because one of the files is missing
     std::filesystem::remove("/tmp/.cape/.cape.db");
     output << 0xFFAAFABA;
-    res = hash_init_db((char *)home, strlen(home));
-    EXPECT_EQ(res, -1);
+    htable = db_init(p_home_dir);
+    EXPECT_EQ(htable, nullptr);
     std::filesystem::remove_all("/tmp/.cape");
 }

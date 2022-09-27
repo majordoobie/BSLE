@@ -5,11 +5,128 @@ struct verified_path
     char * p_path;
 };
 
-DEBUG_STATIC char * join_and_resolve_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length);
-static char * join_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length);
+DEBUG_STATIC char * join_and_resolve_paths(const char * p_root,
+                                           size_t root_length,
+                                           const char * p_child,
+                                           size_t child_length);
+static char * join_paths(const char * p_root,
+                         size_t root_length,
+                         const char * p_child,
+                         size_t child_length);
 
 // Bytes needed to account for the "/" and a "\0"
 #define SLASH_PLUS_NULL 2
+
+/*!
+ * @brief Access to the members of verified_path_t is private. But the need
+ * to print the verified_path_t may be needed for debugging. This function
+ * writes the path into the buffer provided.
+ *
+ * It is best to allocate the space needed with PATH_MAX
+ *         char repr[PATH_MAX] = {0};
+ *         f_path_repr(p_home_dir, repr, PATH_MAX)
+ *
+ * @param p_path Verified path object
+ */
+void f_path_repr(verified_path_t * p_path, char * path_repr, size_t path_size)
+{
+    if ((NULL == p_path)
+        || (NULL == path_repr)
+        || (path_size > PATH_MAX)
+        || (strlen(p_path->p_path) > path_size))
+    {
+        return;
+    }
+
+    memset(path_repr, 0, path_size);
+    for (size_t i = 0; i < strlen(p_path->p_path); i++)
+    {
+        path_repr[i] = p_path->p_path[i];
+    }
+}
+
+/*!
+ * @brief Function creates a verified path representing the home dir. A
+ * verified path is a object that contains the path to path that exists
+ * and exists with in the home dir.
+ *
+ * @param p_home_dir Pointer to the home dir string
+ * @param dir_size Size of the home dir string
+ * @return Verified path if path exists else NULL
+ */
+verified_path_t * f_set_home_dir(const char * p_home_dir, size_t dir_size)
+{
+    if ((NULL == p_home_dir))
+    {
+        goto ret_null;
+    }
+
+    char * p_join_path = join_and_resolve_paths(p_home_dir, dir_size,
+                                                "", 0);
+    if (NULL == p_join_path)
+    {
+        goto ret_null;
+    }
+
+    // Finally, create the verified_path_t object and set the path to the
+    // verified path that "can" exist
+    verified_path_t
+        * p_path = (verified_path_t *)malloc(sizeof(verified_path_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_path))
+    {
+        fprintf(stderr, "[!] Homedir path provided did not resolve\n");
+        goto ret_null;
+    }
+
+    p_path->p_path = p_join_path;
+    return p_path;
+
+ret_null:
+    return NULL;
+}
+
+/*!
+ * @brief Exact same function as f_valid_resolve except that a verified path
+ * of the homedir is used.
+ *
+ * @param p_home_dir verified_path_t object of the home dir
+ * @param p_child Pointer to the child path to resolve
+ * @return Verified path if the path is valid or else NULL
+ */
+verified_path_t * f_ver_valid_resolve(verified_path_t * p_home_dir,
+                                      const char * p_child)
+{
+    if ((NULL == p_home_dir) || (NULL == p_child))
+    {
+        goto ret_null;
+    }
+    return f_valid_resolve(p_home_dir->p_path, p_child);
+
+ret_null:
+    return NULL;
+}
+
+/*!
+ * @brief Exact same function as f_path_resolve except that a verified path
+ * of the homedir is used.
+ *
+ * @param p_home_dir verified_path_t object of the home dir
+ * @param p_child Pointer to the child path to resolve
+ * @return Verified path if the path is valid or else NULL
+ */
+verified_path_t * f_ver_path_resolve(verified_path_t * p_home_dir,
+                                     const char * p_child)
+{
+    if ((NULL == p_home_dir) || (NULL == p_child))
+    {
+        goto ret_null;
+    }
+    return f_path_resolve(p_home_dir->p_path, p_child);
+
+ret_null:
+    return NULL;
+
+}
 
 /*!
  * @brief Just like `f_path_resolve`, the function checks to ensure that the
@@ -39,7 +156,7 @@ verified_path_t * f_valid_resolve(const char * p_home_dir, const char * p_child)
 
     // Attempt to resolve a path within the home dir using the child paths
     // dir path
-    char * child_dir =  dirname(p_child_cpy);
+    char * child_dir = dirname(p_child_cpy);
     size_t home_dir_len = strlen(p_home_dir);
     char * p_join_path = join_and_resolve_paths(p_home_dir,
                                                 home_dir_len,
@@ -89,7 +206,8 @@ verified_path_t * f_valid_resolve(const char * p_home_dir, const char * p_child)
 
     // Finally, create the verified_path_t object and set the path to the
     // verified path that "can" exist
-    verified_path_t * p_path = (verified_path_t *)malloc(sizeof(verified_path_t));
+    verified_path_t
+        * p_path = (verified_path_t *)malloc(sizeof(verified_path_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_path))
     {
         goto cleanup_rsvl;
@@ -143,12 +261,12 @@ verified_path_t * f_path_resolve(const char * p_home_dir, const char * p_child)
         goto ret_null;
     }
 
-    char * p_join_path = join_and_resolve_paths(p_home_dir, home_dir_len, p_child, child_len);
+    char * p_join_path =
+        join_and_resolve_paths(p_home_dir, home_dir_len, p_child, child_len);
     if (NULL == p_join_path)
     {
         goto ret_null;
     }
-
 
     if (0 != strncmp(p_home_dir, p_join_path, home_dir_len))
     {
@@ -158,7 +276,8 @@ verified_path_t * f_path_resolve(const char * p_home_dir, const char * p_child)
         goto cleanup;
     }
 
-    verified_path_t * p_path = (verified_path_t *)malloc(sizeof(verified_path_t));
+    verified_path_t
+        * p_path = (verified_path_t *)malloc(sizeof(verified_path_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_path))
     {
         goto cleanup;
@@ -184,7 +303,7 @@ void f_destroy_path(verified_path_t ** pp_path)
     {
         return;
     }
-    verified_path_t * p_path = *pp_path;
+    verified_path_t * p_path = * pp_path;
     if (NULL == p_path)
     {
         return;
@@ -196,7 +315,7 @@ void f_destroy_path(verified_path_t ** pp_path)
         p_path->p_path = NULL;
     }
     free(p_path);
-    *pp_path = NULL;
+    * pp_path = NULL;
 }
 
 /*!
@@ -213,7 +332,6 @@ file_op_t f_create_dir(verified_path_t * p_path)
         goto ret_null;
     }
 
-    printf("\n\n[!!!!!!!]Trying to make %s\n\n", p_path->p_path);
     int result = mkdir(p_path->p_path, 0777);
     if (-1 == result)
     {
@@ -261,7 +379,9 @@ ret_null:
  * @param stream_size Number of bytes in the byte stream
  * @return FILE_OP_SUCCESS if operation succeeded, otherwise FILE_OP_FAILURE
  */
-file_op_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stream_size)
+file_op_t f_write_file(verified_path_t * p_path,
+                       uint8_t * p_stream,
+                       size_t stream_size)
 {
     if ((NULL == p_path) || (NULL == p_stream))
     {
@@ -337,14 +457,16 @@ file_content_t * f_read_file(verified_path_t * p_path)
     }
 
     // Create the byte array to read the contents of the file
-    uint8_t * p_byte_array = (uint8_t *)calloc((unsigned long)file_size, sizeof(uint8_t));
+    uint8_t * p_byte_array =
+        (uint8_t *)calloc((unsigned long)file_size, sizeof(uint8_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_byte_array))
     {
         goto cleanup_close;
     }
 
     // Read the contents into the p_byte_array created
-    size_t bytes_read = fread(p_byte_array, sizeof(uint8_t),(unsigned long)file_size, h_path);
+    size_t bytes_read =
+        fread(p_byte_array, sizeof(uint8_t), (unsigned long)file_size, h_path);
     fclose(h_path);
     if (bytes_read != (unsigned long)file_size)
     {
@@ -363,7 +485,8 @@ file_content_t * f_read_file(verified_path_t * p_path)
     }
 
     // Create the file read content
-    file_content_t * p_content = (file_content_t *)malloc(sizeof(file_content_t));
+    file_content_t
+        * p_content = (file_content_t *)malloc(sizeof(file_content_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_content))
     {
         goto cleanup_hash;
@@ -378,7 +501,7 @@ file_content_t * f_read_file(verified_path_t * p_path)
     }
 
     // Save data into the content structure to return
-    *p_content = (file_content_t){
+    * p_content = (file_content_t){
         .p_stream       = p_byte_array,
         .p_hash         = p_hash,
         .stream_size    = bytes_read,
@@ -390,7 +513,7 @@ file_content_t * f_read_file(verified_path_t * p_path)
 cleanup_content:
     free(p_content); // Content is not populated here so no destroy is called
 cleanup_hash:
-    hash_destroy(&p_hash);
+    hash_destroy(& p_hash);
 cleanup_array:
     free(p_byte_array);
 cleanup_close:
@@ -410,23 +533,23 @@ void f_destroy_content(file_content_t ** pp_content)
         return;
     }
 
-    file_content_t * p_content = *pp_content;
+    file_content_t * p_content = * pp_content;
     if (NULL == p_content)
     {
         return;
     }
 
-    hash_destroy(&p_content->p_hash);
+    hash_destroy(& p_content->p_hash);
     free(p_content->p_stream);
     free(p_content->p_path);
-    *p_content = (file_content_t){
+    * p_content = (file_content_t){
         .p_stream    = NULL,
         .p_path      = NULL,
         .p_hash      = NULL,
         .stream_size = 0
     };
     free(p_content);
-    *pp_content = NULL;
+    * pp_content = NULL;
 }
 
 /*!
@@ -439,7 +562,10 @@ void f_destroy_content(file_content_t ** pp_content)
  * @param child_length Length of p_child path
  * @return Pointer to the resolved path or NULL if failure
  */
-DEBUG_STATIC char * join_and_resolve_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length)
+DEBUG_STATIC char * join_and_resolve_paths(const char * p_root,
+                                           size_t root_length,
+                                           const char * p_child,
+                                           size_t child_length)
 {
     if ((NULL == p_root) || (NULL == p_child))
     {
@@ -455,6 +581,7 @@ DEBUG_STATIC char * join_and_resolve_paths(const char * p_root, size_t root_leng
     char * p_abs_path = realpath(new_path, NULL);
     if (NULL == p_abs_path)
     {
+        debug_print("[!] %s did not resolve\n", new_path);
         goto cleanup; // Path did not resolve
     }
 
@@ -478,7 +605,10 @@ ret_null:
  * @param child_length Length of p_child path
  * @return Pointer to the new joined path or NULL if failure
  */
-static char * join_paths(const char * p_root, size_t root_length, const char * p_child, size_t child_length)
+static char * join_paths(const char * p_root,
+                         size_t root_length,
+                         const char * p_child,
+                         size_t child_length)
 {
     if ((NULL == p_root) || (NULL == p_child))
     {
