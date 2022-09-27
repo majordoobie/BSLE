@@ -106,7 +106,7 @@ TEST(TestDBParsing, UserAdd)
     server_error_codes_t res = db_create_user( p_home_dir, htable,
                                                "VooDooRanger", "New Belgium", READ);
     EXPECT_EQ(res, OP_SUCCESS);
-    res = db_create_user(p_home_dir, htable, "VoodooRanger", "New Belgium", READ);
+    res = db_create_user(p_home_dir, htable, "VoodooRanger", "New Belgium CO", READ);
     EXPECT_EQ(res, OP_SUCCESS);
     res = db_create_user(p_home_dir, htable, "Voodoo", "New Belgium Brew", READ);
     EXPECT_EQ(res, OP_SUCCESS);
@@ -114,6 +114,12 @@ TEST(TestDBParsing, UserAdd)
     EXPECT_EQ(res, OP_USER_EXISTS);
 
     db_shutdown(p_home_dir, htable);
+
+    // re init to make sure that all the users persisted
+    htable = db_init(p_home_dir);
+    EXPECT_EQ(htable_get_length(htable), 4);
+    db_shutdown(p_home_dir, htable);
+
     f_destroy_path(&p_home_dir);
     std::filesystem::remove_all("/tmp/.cape");
 }
