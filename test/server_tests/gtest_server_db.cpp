@@ -4,9 +4,14 @@
 #include <fstream>
 
 // Variables are used to synchronize the threads in ctest -j $(nproc)
-static volatile std::atomic_uint clear = 0;
-static unsigned int tests = 2;
+static std::atomic_uint clear = 0;
+static unsigned int tests = 6;
 
+/*
+ * These unit tests are so hard to synchronize with ctest -j since they
+ * are running in parallel. The I/O tends to interfere with each other.
+ * You will have to run the unit test twice if using ctest -j for it to work
+ */
 class DBUserActions : public ::testing::Test
 {
  public:
@@ -16,9 +21,11 @@ class DBUserActions : public ::testing::Test
  protected:
     void SetUp() override
     {
+        bool init = false;
         if (!std::filesystem::exists(test_dir))
         {
             std::filesystem::create_directory(test_dir);
+            init = true;
         }
         // **NOTE** this value is not freed. It is a bit awkward here but the
         // server_args api will already create the verified_path_t in order
@@ -26,25 +33,31 @@ class DBUserActions : public ::testing::Test
         this->p_home_dir = f_set_home_dir(test_dir.c_str(), test_dir.string().size());
         this->user_db = db_init(this->p_home_dir);
 
-        db_create_user(
-            this->user_db,
-            "VooDooRanger",
-            "New Belgium", READ);
+        if (init)
+        {
+            db_create_user(
+                this->user_db,
+                "VooDooRanger",
+                "New Belgium", READ);
 
-        db_create_user(
-            this->user_db,
-            "VDooRanger Imperial",
-            "New Belgium CO", READ);
+            db_create_user(
+                this->user_db,
+                "VDooRanger Imperial",
+                "New Belgium CO", READ);
 
-        db_create_user(
-            this->user_db,
-            "Fat Tire",
-            "New Belgium CO Denver", READ_WRITE);
+            db_create_user(
+                this->user_db,
+                "Fat Tire",
+                "New Belgium CO Denver", READ_WRITE);
 
-        db_create_user(
-            this->user_db,
-            "Juicy Haze",
-            "NB North Carolina", READ_WRITE);
+            db_create_user(
+                this->user_db,
+                "Juicy Haze",
+                "NB North Carolina", READ_WRITE);
+        }
+
+        this->user_db->_debug = true;
+
     }
 
     void TearDown() override
@@ -137,10 +150,10 @@ TEST_F(DBUserActions, FailureUserCreate)
 
 TEST_F(DBUserActions, UserDeletion)
 {
-    server_error_codes_t res = db_remove_user(this->user_db, "VooDooRanger");
+    server_error_codes_t res = db_remove_user(this->user_db, "VDooRanger Imperial");
     EXPECT_EQ(res, OP_SUCCESS);
 
-    res = db_remove_user(this->user_db, "VooDooRanger");
+    res = db_remove_user(this->user_db, "VDooRanger Imperial");
     EXPECT_EQ(res, OP_USER_EXISTS);
 }
 

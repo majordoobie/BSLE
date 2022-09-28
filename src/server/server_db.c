@@ -127,7 +127,8 @@ db_t * db_init(verified_path_t * p_home_dir)
     {
         fprintf(stderr, "[!] Hash stored does not match the hash "
                         "of the database. Revert the database base back to "
-                        "what it was or remove all `.cape` files to start over.");
+                        "what it was or remove all `.cape` files to start "
+                        "over.\n");
         goto cleanup_hash_content;
     }
     f_destroy_content(&p_hash_contents);
@@ -382,7 +383,7 @@ server_error_codes_t db_authenticate_user(db_t * p_db,
 
 static void db_update_db(db_t * p_db)
 {
-    if (NULL == p_db)
+    if ((NULL == p_db) || (true == p_db->_debug))
     {
         goto ret_null;
     }
@@ -454,8 +455,8 @@ static void db_update_db(db_t * p_db)
     }
 
     //*NOTE* That char_count - acc is written this is to omit the \0 from fprintf
-    file_op_t status = f_write_file(p_db_path, p_buffer, (char_count - accounts));
-    if (FILE_OP_FAILURE == status)
+    server_error_codes_t status = f_write_file(p_db_path, p_buffer, (char_count - accounts));
+    if (OP_FAILURE == status)
     {
         goto cleanup_file;
     }
@@ -812,8 +813,8 @@ static verified_path_t * init_db_file(verified_path_t * p_home_dir)
     }
 
     //*NOTE* That array_size - 1 is written this is to omit the \0 from fprintf
-    file_op_t status = f_write_file(p_db, p_buffer, array_size - 1);
-    if (FILE_OP_FAILURE == status)
+    server_error_codes_t status = f_write_file(p_db, p_buffer, array_size - 1);
+    if (OP_FAILURE == status)
     {
         goto cleanup_array;
     }
@@ -847,8 +848,8 @@ static verified_path_t * init_db_dir(verified_path_t * p_home_dir)
         goto ret_null;
     }
 
-    file_op_t status = f_create_dir(p_db_dir);
-    if (FILE_OP_FAILURE == status)
+    server_error_codes_t status = f_create_dir(p_db_dir);
+    if (OP_FAILURE == status)
     {
         fprintf(stderr, "[!] Could not create the database "
                         "directory in %s. You may have to perform this "

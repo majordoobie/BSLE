@@ -13,16 +13,13 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <errno.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <ftw.h>
 
 #include <utils.h>
 #include <server_crypto.h>
-
-typedef enum
-{
-    FILE_OP_SUCCESS,
-    FILE_OP_FAILURE
-} file_op_t;
-
+#include "server.h"
 
 typedef struct verified_path verified_path_t;
 
@@ -129,6 +126,21 @@ void f_destroy_path(verified_path_t ** pp_path);
 FILE * f_open_file(verified_path_t * p_path, const char * p_read_mode);
 
 /*!
+ * @brief Destroy the file_content_t object
+ * @param pp_content Double pointer to the file_content_t object
+ */
+void f_destroy_content(file_content_t ** pp_content);
+
+
+/*
+ *
+ *
+ * User operations
+ *
+ *
+ */
+
+/*!
  * @brief Read wrapper is used to read the verified file path. If successful,
  * the data read is hashed and all the metadata about the stream is added
  * into the file_content_t object.
@@ -138,11 +150,6 @@ FILE * f_open_file(verified_path_t * p_path, const char * p_read_mode);
  */
 file_content_t * f_read_file(verified_path_t * p_path);
 
-/*!
- * @brief Destroy the file_content_t object
- * @param pp_content Double pointer to the file_content_t object
- */
-void f_destroy_content(file_content_t ** pp_content);
 
 /*!
  * @brief Simple wrapper to write the data stream to the verified file path
@@ -152,16 +159,47 @@ void f_destroy_content(file_content_t ** pp_content);
  * @param stream_size Number of bytes in the byte stream
  * @return FILE_OP_SUCCESS if operation succeeded, otherwise FILE_OP_FAILURE
  */
-file_op_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stream_size);
+server_error_codes_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stream_size);
 
 /*!
  * @brief Simple wrapper for creating a directory using the verified_path_t
- * object
+ * object.
+ *
+ * Usage:
+ *  verified_path_t * p_db_dir = f_ver_valid_resolve(p_home_dir, path);
+ *  server_error_codes_t status = f_create_dir(p_db_dir);
+ *
  *
  * @param p_path Pointer to a verified_path_t object
- * @return file_op_t indicating if the operation failed or succeeded
+ * @retval OP_SUCCESS When the directory is created
+ * @retval OP_FAILURE When there is a creation error
  */
-file_op_t f_create_dir(verified_path_t * p_path);
+server_error_codes_t f_create_dir(verified_path_t * p_path);
+
+/*!
+ * @brief Delete the file. If the file is of type directory, first check
+ * the the directory is empty. If it is empty, attempt to delete the directory.
+ *
+ * @param p_path Pointer to a verified_path_t object
+ * @retval OP_SUCCESS Successfully removed the file/directory
+ * @retval OP_DIR_NOT_EMPTY When attempting to delete a directory that is not
+ * empty
+ * @retval OP_FAILURE Server errors
+ */
+server_error_codes_t f_del_file(verified_path_t * p_path);
+
+/*!
+ * @brief Iterate over all the files in the dir path provided and create
+ * a byte array with the file type [F] for file or [D] for dir along with
+ * the file size and file name.
+ *
+ * The data is stitched together using f_type:f_size:f_name\n
+ *
+ * @param p_path  Pointer to the path to list
+ * @return A file content containing the array of data to return or NULL if
+ * a failure occurred
+ */
+file_content_t * f_list_dir(verified_path_t * p_path);
 
 // HEADER GUARD
 #ifdef __cplusplus

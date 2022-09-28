@@ -182,7 +182,7 @@ static void print_usage(void)
  */
 verified_path_t * get_home_dir(char * home_dir)
 {
-    struct stat stat_buff;
+    struct stat stat_buff = {0};
     if (-1 == stat(home_dir, &stat_buff))
     {
         perror("home directory");

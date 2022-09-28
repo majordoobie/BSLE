@@ -1,21 +1,29 @@
 #include <server_file_api.h>
 
+// Bytes needed to account for the "/" and a "\0"
+#define SLASH_PLUS_NULL 2
+
+
+static uint8_t * realloc_buff(uint8_t * p_buffer,
+                              size_t * p_size,
+                              size_t offset);
+static size_t get_file_size(verified_path_t * p_path, char name[256],
+                            uint16_t * num_len);
+DEBUG_STATIC char * join_and_resolve_paths(const char * p_root,
+                                           size_t root_length,
+                                           const char * p_child,
+                                           size_t child_length);
+static char * join_paths(const char * p_root, size_t root_length,
+                         const char * p_child, size_t child_length);
+
+
+// Simple structure is to ensure path paths passed to the API have already
+// been validated
 struct verified_path
 {
     char * p_path;
 };
 
-DEBUG_STATIC char * join_and_resolve_paths(const char * p_root,
-                                           size_t root_length,
-                                           const char * p_child,
-                                           size_t child_length);
-static char * join_paths(const char * p_root,
-                         size_t root_length,
-                         const char * p_child,
-                         size_t child_length);
-
-// Bytes needed to account for the "/" and a "\0"
-#define SLASH_PLUS_NULL 2
 
 /*!
  * @brief Access to the members of verified_path_t is private. But the need
@@ -74,12 +82,14 @@ verified_path_t * f_set_home_dir(const char * p_home_dir, size_t dir_size)
     if (UV_INVALID_ALLOC == verify_alloc(p_path))
     {
         fprintf(stderr, "[!] Homedir path provided did not resolve\n");
-        goto ret_null;
+        goto cleanup;
     }
 
     p_path->p_path = p_join_path;
     return p_path;
 
+cleanup:
+    free(p_join_path);
 ret_null:
     return NULL;
 }
@@ -319,12 +329,18 @@ void f_destroy_path(verified_path_t ** pp_path)
 
 /*!
  * @brief Simple wrapper for creating a directory using the verified_path_t
- * object
+ * object.
+ *
+ * Usage:
+ *  verified_path_t * p_db_dir = f_ver_valid_resolve(p_home_dir, path);
+ *  server_error_codes_t status = f_create_dir(p_db_dir);
+ *
  *
  * @param p_path Pointer to a verified_path_t object
- * @return file_op_t indicating if the operation failed or succeeded
+ * @retval OP_SUCCESS When the directory is created
+ * @retval OP_FAILURE When there is a creation error
  */
-file_op_t f_create_dir(verified_path_t * p_path)
+server_error_codes_t f_create_dir(verified_path_t * p_path)
 {
     if ((NULL == p_path) || (NULL == p_path->p_path))
     {
@@ -337,10 +353,89 @@ file_op_t f_create_dir(verified_path_t * p_path)
         perror("mkdir");
         goto ret_null;
     }
-    return FILE_OP_SUCCESS;
+    return OP_SUCCESS;
 
 ret_null:
-    return FILE_OP_FAILURE;
+    return OP_FAILURE;
+}
+
+/*!
+ * @brief Delete the file. If the file is of type directory, first check
+ * the the directory is empty. If it is empty, attempt to delete the directory.
+ *
+ * @param p_path Pointer to a verified_path_t object
+ * @retval OP_SUCCESS Successfully removed the file/directory
+ * @retval OP_DIR_NOT_EMPTY When attempting to delete a directory that is not
+ * empty
+ * @retval OP_FAILURE Server errors
+ */
+server_error_codes_t f_del_file(verified_path_t * p_path)
+{
+    if (NULL == p_path)
+    {
+        goto ret_null;
+    }
+
+    struct stat stat_buff = {0};
+    if (-1 == stat(p_path->p_path, &stat_buff))
+    {
+        debug_print_err("[!] Unable to get stats for %s\n:Error: %s\n",
+                        p_path->p_path, strerror(errno));
+        goto ret_null;
+    }
+
+    // Check if the file path is a file
+    if (S_ISREG(stat_buff.st_mode))
+    {
+        if (-1 == unlink(p_path->p_path))
+        {
+            debug_print_err("[!] Unable to unlink %s\n:Error: %s\n",
+                            p_path->p_path, strerror(errno));
+            goto ret_null;
+        }
+    }
+    else if (S_ISDIR(stat_buff.st_mode))
+    {
+        // File count is used to count the number of files in the directory
+        // if the directory has only two files ("." and "..") then the directory
+        // is empty
+        uint8_t file_count = 0;
+        struct dirent * obj;
+        DIR * h_dir = opendir(p_path->p_path);
+        obj = readdir(h_dir);
+        while ((NULL != obj) && (file_count < 4))
+        {
+            file_count++;
+            obj = readdir(h_dir);
+        }
+        closedir(h_dir);
+        if (file_count > 2)
+        {
+            goto dir_not_empty;
+        }
+        else
+        {
+            if (-1 == rmdir(p_path->p_path))
+            {
+                debug_print_err("[!] Unable to remove directory %s\n:Error: %s\n",
+                                p_path->p_path, strerror(errno));
+                goto ret_null;
+            }
+        }
+    }
+    else
+    {
+        debug_print_err("[!] File %s is not a regular file or directory\n",
+                        p_path->p_path);
+        goto ret_null;
+    }
+
+    return OP_SUCCESS;
+
+dir_not_empty:
+    return OP_DIR_NOT_EMPTY;
+ret_null:
+    return OP_FAILURE;
 }
 
 /*!
@@ -378,7 +473,7 @@ ret_null:
  * @param stream_size Number of bytes in the byte stream
  * @return FILE_OP_SUCCESS if operation succeeded, otherwise FILE_OP_FAILURE
  */
-file_op_t f_write_file(verified_path_t * p_path,
+server_error_codes_t f_write_file(verified_path_t * p_path,
                        uint8_t * p_stream,
                        size_t stream_size)
 {
@@ -400,13 +495,14 @@ file_op_t f_write_file(verified_path_t * p_path,
                 p_path->p_path);
         goto cleanup;
     }
+
     fclose(h_path);
-    return FILE_OP_SUCCESS;
+    return OP_SUCCESS;
 
 cleanup:
     fclose(h_path);
 ret_null:
-    return FILE_OP_FAILURE;
+    return OP_FAILURE;
 }
 
 /*!
@@ -520,6 +616,161 @@ cleanup_close:
 ret_null:
     return NULL;
 }
+
+/*!
+ * @brief Iterate over all the files in the dir path provided and create
+ * a byte array with the file type [F] for file or [D] for dir along with
+ * the file size and file name.
+ *
+ * The data is stitched together using f_type:f_size:f_name\n
+ *
+ * @param p_path  Pointer to the path to list
+ * @return A file content containing the array of data to return or NULL if
+ * a failure occurred
+ */
+file_content_t * f_list_dir(verified_path_t * p_path)
+{
+    uint8_t * p_buffer = NULL;
+    struct stat stat_buff = {0};
+    if (-1 == stat(p_path->p_path, &stat_buff))
+    {
+        debug_print_err("[!] Unable to get stats for %s\n:Error: %s\n",
+                        p_path->p_path, strerror(errno));
+        goto ret_null;
+    }
+
+    if (!S_ISDIR(stat_buff.st_mode))
+    {
+        fprintf(stderr, "[!] Path %s given is not a directory\n",
+                p_path->p_path);
+        goto ret_null;
+    }
+
+
+    // Allocate a p_buffer that we can resize for the string output
+    size_t buff_size = 1024;
+    size_t offset = 0;
+    int writes = 0;
+    p_buffer = (uint8_t *)calloc(buff_size, sizeof(uint8_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_buffer))
+    {
+        goto ret_null;
+    }
+
+
+    struct dirent * obj;
+    DIR * h_dir = opendir(p_path->p_path);
+    if (NULL == h_dir)
+    {
+        fprintf(stderr, "[!] Could not open %s\nError: %s\n", p_path->p_path,
+                strerror(errno));
+        goto cleanup_buff;
+    }
+
+    // Iterate over the path given looking for:
+    // -> File types: dir or regular
+    // -> File names not "." or ".."
+    obj = readdir(h_dir);
+    while (NULL != obj)
+    {
+        // obj->d_name is guaranteed to have a '\0'
+        if (((DT_REG == obj->d_type)
+                || (DT_DIR == obj->d_type))
+                && ((0 != strcmp(obj->d_name, ".")
+                     && (0 != strcmp(obj->d_name, "..")))
+                     ))
+        {
+            // Get the file size and the length of digits to represent the length
+            uint16_t num_length = 0;
+            size_t file_size = get_file_size(p_path, obj->d_name, &num_length);
+
+            // Check if the buffer has enough room to write the string
+            // The 4 represents ":", ":", "\n", "\0"
+            if ((strlen(obj->d_name) + offset + num_length) + 4 >= buff_size)
+            {
+                // realloc_buff will free the buffer on failure
+                p_buffer = realloc_buff(p_buffer, &buff_size, offset);
+                if (NULL == p_buffer)
+                {
+                    goto ret_null;
+                }
+            }
+            writes = sprintf((char *)(p_buffer + offset), "[%s]:%ld:%s\n",
+                             (obj->d_type == DT_REG ? "F" : "D"),
+                             file_size,
+                             obj->d_name);
+            if (writes < 0)
+            {
+                fprintf(stderr, "[!] Write error reading directory\n");
+                goto cleanup_buff;
+            }
+            offset += (size_t)writes;
+        }
+        obj = readdir(h_dir);
+    }
+    closedir(h_dir);
+
+    // Create the buffer that is going to be returned
+    size_t str_len = strlen((char *)p_buffer);
+    uint8_t * p_buff = (uint8_t *)calloc(str_len, sizeof(uint8_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_buff))
+    {
+        goto cleanup_buff;
+    }
+
+    // Copy the data to the new memory block. This is what will be used
+    // from now on.
+    memcpy(p_buff, p_buffer, str_len);
+
+    // Hash the data stream
+    hash_t * p_hash = hash_byte_array(p_buff, str_len);
+    if (NULL == p_hash)
+    {
+        fprintf(stderr, "[!] Unable to hash the contents of "
+                        "%s", p_path->p_path);
+        goto cleanup_buff2;
+    }
+
+    // Create the file read content
+    file_content_t * p_content = (file_content_t *)malloc(sizeof(file_content_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_content))
+    {
+        goto cleanup_hash;
+    }
+
+    // Duplicate the file path, the verified path is not needed inside the
+    // contents structure
+    char * p_file_path = strdup(p_path->p_path);
+    if (UV_INVALID_ALLOC == verify_alloc(p_file_path))
+    {
+        goto cleanup_content;
+    }
+
+    // Save data into the content structure to return
+    *p_content = (file_content_t){
+        .p_stream       = p_buff,
+        .p_hash         = p_hash,
+        .stream_size    = str_len,
+        .p_path         = p_file_path
+    };
+
+    free(p_buffer);
+    return p_content;
+
+cleanup_content:
+    f_destroy_content(&p_content);
+cleanup_hash:
+    hash_destroy(&p_hash);
+cleanup_buff2:
+    free(p_buff);
+    p_buff = NULL;
+cleanup_buff:
+    free(p_buffer);
+    p_buffer = NULL;
+ret_null:
+    return NULL;
+}
+
 
 /*!
  * @brief Destroy the file_content_t object
@@ -644,4 +895,68 @@ static char * join_paths(const char * p_root,
 
 ret_null:
     return NULL;
+}
+
+/*!
+ * @brief Reallocate the buffer and memset the newly added portion
+ * of the buffer
+ *
+ * @param p_buffer Buffer to resize
+ * @param p_size Size to resize by
+ * @param offset Offset is the last portion initialized previously
+ * @return New pointer to the new buffer or NULL
+ */
+static uint8_t * realloc_buff(uint8_t * p_buffer, size_t * p_size, size_t offset)
+{
+    *p_size = *p_size * 2;
+    uint8_t * p_buff = (uint8_t *)realloc(p_buffer, *p_size);
+    if (UV_INVALID_ALLOC == verify_alloc(p_buff))
+    {
+        free(p_buffer);
+        p_buffer = NULL;
+        return NULL;
+    }
+
+    // Initialized the new portion of the realloc
+    memset(p_buff + offset, 0, (*p_size - offset));
+    return p_buff;
+}
+
+/*!
+ * @brief Get the size of the file and the number of digits that represents
+ * the file size
+ *
+ * @param p_path Pointer to the verified file path
+ * @param name Name of the file
+ * @param num_len Number of integers that represents the file size
+ * @return Size of the file
+ */
+static size_t get_file_size(verified_path_t * p_path,
+                            char name[256],
+                            uint16_t * num_len)
+{
+    struct stat stat_buff = {0};
+    char path[PATH_MAX] = {0};
+
+    // Both p_path and name are guaranteed to be null terminated
+    strcat(path, p_path->p_path);
+    strcat(path, "/");
+    strcat(path, name);
+
+    if (-1 == stat(path, &stat_buff))
+    {
+        debug_print_err("[!] Unable to get stats for %s\n:Error: %s\n",
+                        p_path->p_path, strerror(errno));
+        return 0;
+    }
+
+    *num_len = 1;
+    size_t size_copy = (size_t)stat_buff.st_size;
+    while (*num_len > 9)
+    {
+        size_copy /= 10;
+        (*num_len)++;
+    }
+
+    return (size_t)stat_buff.st_size;
 }
