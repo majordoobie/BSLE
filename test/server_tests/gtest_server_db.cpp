@@ -5,12 +5,12 @@
 
 // Variables are used to synchronize the threads in ctest -j $(nproc)
 static volatile std::atomic_uint clear = 0;
-static unsigned int tests = 1;
+static unsigned int tests = 2;
 
 class DBUserActions : public ::testing::Test
 {
  public:
-    htable_t * user_db;
+    db_t * user_db;
     verified_path_t * p_home_dir;
     const std::filesystem::path test_dir{"/tmp/DBActions"};
  protected:
@@ -20,38 +20,36 @@ class DBUserActions : public ::testing::Test
         {
             std::filesystem::create_directory(test_dir);
         }
+        // **NOTE** this value is not freed. It is a bit awkward here but the
+        // server_args api will already create the verified_path_t in order
+        // to verify that the path is valid
         this->p_home_dir = f_set_home_dir(test_dir.c_str(), test_dir.string().size());
         this->user_db = db_init(this->p_home_dir);
 
-        server_error_codes_t res = db_create_user(this->p_home_dir,
-                                                  this->user_db,
-                                                   "VooDooRanger",
-                                                   "New Belgium", READ);
-        EXPECT_EQ(res, OP_SUCCESS);
+        db_create_user(
+            this->user_db,
+            "VooDooRanger",
+            "New Belgium", READ);
 
-        res = db_create_user(this->p_home_dir,
-                             this->user_db,
-                             "VDooRanger Imperial",
-                             "New Belgium CO", READ);
-        EXPECT_EQ(res, OP_SUCCESS);
+        db_create_user(
+            this->user_db,
+            "VDooRanger Imperial",
+            "New Belgium CO", READ);
 
-        res = db_create_user(this->p_home_dir,
-                             this->user_db,
-                             "Fat Tire",
-                             "New Belgium CO Denver", READ_WRITE);
-        EXPECT_EQ(res, OP_SUCCESS);
+        db_create_user(
+            this->user_db,
+            "Fat Tire",
+            "New Belgium CO Denver", READ_WRITE);
 
-        res = db_create_user(this->p_home_dir,
-                             this->user_db,
-                             "Juicy Haze",
-                             "NB North Carolina", READ_WRITE);
-        EXPECT_EQ(res, OP_SUCCESS);
+        db_create_user(
+            this->user_db,
+            "Juicy Haze",
+            "NB North Carolina", READ_WRITE);
     }
 
     void TearDown() override
     {
-        f_destroy_path(&this->p_home_dir);
-        htable_destroy(this->user_db, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+        db_shutdown(&this->user_db);
 
         // Atomic function to clear the test directory. This is used to
         // synchronize the threads for ctest -j $(nrpoc)
@@ -60,6 +58,7 @@ class DBUserActions : public ::testing::Test
         long long int val = clear.fetch_add(1);
         if (val >= (tests - 1))
         {
+            fprintf(stderr, "[!] Cleaning up");
             remove_all(this->test_dir);
         }
     }
@@ -68,19 +67,19 @@ class DBUserActions : public ::testing::Test
 TEST_F(DBUserActions, TestUserExists)
 {
 
-    server_error_codes_t res = db_create_user(this->p_home_dir,
-                                              this->user_db,
-                                              "VooDooRanger",
-                                              "New Belgium", READ);
+    server_error_codes_t res = db_create_user(
+        this->user_db,
+        "VooDooRanger",
+        "New Belgium", READ);
     EXPECT_EQ(res, OP_USER_EXISTS);
 }
 
 TEST_F(DBUserActions, Dud)
 {
-    server_error_codes_t res = db_create_user(this->p_home_dir,
-                                              this->user_db,
-                                              "VooDooRanger",
-                                              "New Belgium", READ);
+    server_error_codes_t res = db_create_user(
+        this->user_db,
+        "VooDooRanger",
+        "New Belgium", READ);
     EXPECT_EQ(res, OP_USER_EXISTS);
 
 }
@@ -102,11 +101,21 @@ TEST(TestDBParsing, ParseDB)
      * Test the successful creation of the ./cape dir and the .cape/.cape.db and
      * .cape/.cape.hash
      */
-    htable_t * htable = db_init(p_home_dir);
+    db_t * htable = db_init(p_home_dir);
     EXPECT_NE(htable, nullptr); // Creates both
-    db_shutdown(p_home_dir, htable);
-    f_destroy_path(&p_home_dir);
+    db_shutdown(&htable);
     std::filesystem::remove_all(home);
+}
+
+db_t * reset_test(const char * path)
+{
+    verified_path_t * p_home_dir = f_set_home_dir(path, strlen(path));
+    db_t * db = db_init(p_home_dir);
+    if (NULL == db)
+    {
+        f_destroy_path(&p_home_dir);
+    }
+    return db;
 }
 
 /*!
@@ -127,28 +136,29 @@ TEST(TestDBInit, SingleThreadTests)
 
     // Remove the cape directory if it exists
     verified_path_t * p_home_dir = f_set_home_dir(home, strlen(home));
-    htable_t * htable = NULL;
+    db_t * p_db = NULL;
 
     /*
      * Test the successful creation of the ./cape dir and the .cape/.cape.db and
      * .cape/.cape.hash
      */
-    htable = db_init(p_home_dir);
-    EXPECT_NE(htable, nullptr); // Creates both
+    p_db = db_init(p_home_dir);
+    EXPECT_NE(p_db, nullptr);
+    db_shutdown(&p_db);
     std::filesystem::remove_all(home_cape);
-    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
 
     /*
      * Test that when one of the two mandatory files are missing that the
      * unit fails
      */
-    htable = db_init(p_home_dir);
-    EXPECT_NE(htable, nullptr);
+    p_db = reset_test(home);
+    EXPECT_NE(p_db, nullptr);
+    db_shutdown(&p_db);
+
     // Remove the db file to force a failure
     std::filesystem::remove(home_cape_db);
-    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
-    htable = db_init(p_home_dir);
-    EXPECT_EQ(htable, nullptr); // Fails because one of the files is missing
+    p_db = reset_test(home);
+    EXPECT_EQ(p_db, nullptr); // Fails because one of the files is missing
     std::filesystem::remove_all(home_cape);
 
 
@@ -156,14 +166,15 @@ TEST(TestDBInit, SingleThreadTests)
      * Expect failure when the hash file does NOT have the magic bytes
      * making it an invalid file
      */
-    htable = db_init(p_home_dir);
-    EXPECT_NE(htable, nullptr);
-    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+    p_db = reset_test(home);
+    EXPECT_NE(p_db, nullptr);
+    db_shutdown(&p_db);
+
     // Remove the contents of the hash file to force a failure of hash match
     std::filesystem::remove(home_cape_hash);
     std::ofstream output(home_cape_hash);
-    htable = db_init(p_home_dir);
-    EXPECT_EQ(htable, nullptr); // Identifies that the db file DOES NOT have the MAGIC
+    p_db = reset_test(home);
+    EXPECT_EQ(p_db, nullptr); // Identifies that the db file DOES NOT have the MAGIC
     std::filesystem::remove_all(home_cape);
 
 
@@ -171,57 +182,15 @@ TEST(TestDBInit, SingleThreadTests)
      * Expect failure due to the hash of the .cape.db not matching the hash
      * in the .cape.hash
      */
-    htable = db_init(p_home_dir);
-    EXPECT_NE(htable, nullptr);
-    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+    p_db = reset_test(home);
+    EXPECT_NE(p_db, nullptr);
+    db_shutdown(&p_db);
 
     std::filesystem::remove(home_cape_db);
     output << 0xFFAAFABA;
-    htable = db_init(p_home_dir);
-    EXPECT_EQ(htable, nullptr);
+    p_db = reset_test(home);
+    EXPECT_EQ(p_db, nullptr);
 
-    std::filesystem::remove_all(home);
-    f_destroy_path(&p_home_dir);
-}
-
-/*!
- * Test ability to create a new user and update the database with the new
- * user added
- */
-TEST(TestDBParsing, UserAdd)
-{
-    // Remove the cape directory if it exists
-    const char * home = "/tmp/test_user_add";
-    std::filesystem::remove_all(home);
-    std::filesystem::create_directory(home);
-
-    // Remove the cape directory if it exists
-    verified_path_t * p_home_dir = f_set_home_dir(home, strlen(home));
-
-    /*
-     * Test the successful creation of the ./cape dir and the .cape/.cape.db and
-     * .cape/.cape.hash
-     */
-    htable_t * htable = db_init(p_home_dir);
-    EXPECT_NE(htable, nullptr); // Creates both
-
-    server_error_codes_t res = db_create_user( p_home_dir, htable,
-                                               "VooDooRanger", "New Belgium", READ);
-    EXPECT_EQ(res, OP_SUCCESS);
-    res = db_create_user(p_home_dir, htable, "VoodooRanger", "New Belgium CO", READ);
-    EXPECT_EQ(res, OP_SUCCESS);
-    res = db_create_user(p_home_dir, htable, "Voodoo", "New Belgium Brew", READ);
-    EXPECT_EQ(res, OP_SUCCESS);
-    res = db_create_user(p_home_dir, htable, "Voodoo", "New Belgium Brew", READ);
-    EXPECT_EQ(res, OP_USER_EXISTS);
-
-    db_shutdown(p_home_dir, htable);
-
-    // re init to make sure that all the users persisted
-    htable = db_init(p_home_dir);
-    EXPECT_EQ(htable_get_length(htable), 4);
-    db_shutdown(p_home_dir, htable);
-
-    f_destroy_path(&p_home_dir);
+    db_shutdown(&p_db);
     std::filesystem::remove_all(home);
 }

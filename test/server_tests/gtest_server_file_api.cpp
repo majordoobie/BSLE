@@ -66,8 +66,10 @@ TEST_P(ServerFileApiTest, TestFileJoining)
         // note that we are evaluating tests - 1 because fetch_add returns the
         // previous value before it was incremented
         long long int val = clear.fetch_add(1);
+        printf("The value of val is: %lld\n", val);
         if (val >= (tests - 1))
         {
+            printf("Cleaning up test dir\n");
             std::filesystem::remove_all("/tmp/dir");
         }
     }
@@ -110,6 +112,8 @@ TEST_P(ServerFileApiTest, TestFileMayExist)
     init_test_dir();
 
     auto [parent, child, expected_str, b_expect_resolve, expect_find, expect_may_exist] = GetParam();
+    static int v = 0;
+    v++;
 
     // Cleaup if the tests are over
     if (parent == "NOT_TEST")
@@ -119,8 +123,10 @@ TEST_P(ServerFileApiTest, TestFileMayExist)
         // note that we are evaluating tests - 1 because fetch_add returns the
         // previous value before it was incremented
         long long int val = clear.fetch_add(1);
+        printf("The value of val is: %lld\n", val);
         if (val >= (tests - 1))
         {
+            printf("Cleaning up test dir\n");
             std::filesystem::remove_all("/tmp/dir");
         }
     }

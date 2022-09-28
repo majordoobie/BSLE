@@ -18,7 +18,7 @@ static bool verify_magic(file_content_t * p_content);
 static bool get_stored_hash(file_content_t * p_content);
 static bool get_stored_data(file_content_t * p_content);
 static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents);
-static void db_update_db(verified_path_t * p_home_dir, htable_t * htable);
+static void db_update_db(db_t * p_db);
 
 
 
@@ -27,6 +27,7 @@ static void db_update_db(verified_path_t * p_home_dir, htable_t * htable);
 void free_value_callback(void * payload);
 static uint64_t hash_callback(void * key);
 static htable_match_t compare_callback(void * left_key, void * right_key);
+
 
 /*!
  * @brief This beefy function aggregates several internal API calls into one
@@ -37,7 +38,7 @@ static htable_match_t compare_callback(void * left_key, void * right_key);
  * @param p_home_dir Path to the home directory of the server
  * @return Hashtable object if successful or NULL if failure
  */
-htable_t * db_init(verified_path_t * p_home_dir)
+db_t * db_init(verified_path_t * p_home_dir)
 {
     // Check if the ${HOME_DIR}/.cape directory exists; If not, create it
     verified_path_t * p_db_dir = f_ver_path_resolve(p_home_dir, DB_DIR);
@@ -150,8 +151,20 @@ htable_t * db_init(verified_path_t * p_home_dir)
 
     populate_htable(htable, p_db_contents);
     f_destroy_content(&p_db_contents);
-    return htable;
 
+    db_t * p_db = (db_t *)malloc(sizeof(db_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_db))
+    {
+        goto cleanup_htable;
+    }
+    *p_db = (db_t){
+        .p_home_dir     = p_home_dir,
+        .users_htable    = htable
+    };
+    return p_db;
+
+cleanup_htable:
+    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
 cleanup_hash_content:
     f_destroy_content(&p_hash_contents);
 cleanup_db_content:
@@ -169,7 +182,7 @@ ret_null:
  * database. If the username or password do not meet the size criteria a
  * credential error is returned.
  *
- * @param htable Pointer to the hashtable user database object
+ * @param p_db Pointer to the hashtable user database object
  * @param username Pointer to the username
  * @param passwd Pointer to the password
  * @param permission Permission of the new user
@@ -177,14 +190,12 @@ ret_null:
  * exists. OP_CRED_RULE_ERROR if username or password trigger a length rule.
  * Otherwise a OP_FAILURE is returned if some internal error occurred.
  */
-server_error_codes_t db_create_user(verified_path_t * p_home_dir,
-                                    htable_t * htable,
+server_error_codes_t db_create_user(db_t * p_db,
                                     const char * username,
                                     const char * passwd,
                                     perms_t permission)
 {
-    if ((NULL == htable)
-         || (NULL == p_home_dir)
+    if ((NULL == p_db)
          || (NULL == username)
          || (NULL == passwd)
          || (strlen(passwd) > MAX_PASSWD_LEN)
@@ -201,7 +212,7 @@ server_error_codes_t db_create_user(verified_path_t * p_home_dir,
     }
 
     // Check if the user already exists in the database, if it does return err
-    if (htable_key_exists(htable, (void *)username))
+    if (htable_key_exists(p_db->users_htable, (void *)username))
     {
         goto user_exists;
     }
@@ -232,9 +243,9 @@ server_error_codes_t db_create_user(verified_path_t * p_home_dir,
     };
 
     // Add the account to the database
-    htable_set(htable, p_username, p_acct);
+    htable_set(p_db->users_htable, p_username, p_acct);
     debug_print("[+] Added new user %s\n", p_username);
-    db_update_db(p_home_dir, htable);
+    db_update_db(p_db);
     return OP_SUCCESS;
 
 cleanup_hash:
@@ -250,23 +261,39 @@ cred_failure:
     return OP_CRED_RULE_ERROR;
 }
 
-void db_shutdown(verified_path_t * p_home_dir, htable_t * htable)
+void db_shutdown(db_t ** pp_db)
 {
+    if ((NULL == pp_db) || (NULL == *pp_db))
+    {
+        return;
+    }
 
-    db_update_db(p_home_dir, htable);
-    htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+    db_t * p_db = *pp_db;
+    db_update_db(p_db);
+
+    // Destroy the db object
+    htable_destroy(p_db->users_htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+    f_destroy_path(&p_db->p_home_dir);
+    *p_db = (db_t){
+        .users_htable   = NULL,
+        .p_home_dir     = NULL
+    };
+
+    free(p_db);
+    p_db    = NULL;
+    *pp_db  = NULL;
 }
 
-static void db_update_db(verified_path_t * p_home_dir, htable_t * htable)
+static void db_update_db(db_t * p_db)
 {
-    if ((NULL == htable) || (NULL == p_home_dir))
+    if (NULL == p_db)
     {
         goto ret_null;
     }
 
     size_t char_count       = 4; // Room for the 4 magic bytes
     size_t accounts         = 0; // Used to remove the '\0' from fprintf
-    htable_iter_t * iter    = htable_get_iter(htable); // htable iter object
+    htable_iter_t * iter    = htable_get_iter(p_db->users_htable); // htable iter object
     htable_entry_t * entry  = htable_iter_get_entry(iter);
     user_account_t * p_acct = NULL;
 
@@ -296,7 +323,7 @@ static void db_update_db(verified_path_t * p_home_dir, htable_t * htable)
     int offset = 4;
 
     // Iterate over the htable again to grab the data
-    iter = htable_get_iter(htable);
+    iter = htable_get_iter(p_db->users_htable);
     entry = htable_iter_get_entry(iter);
     while (NULL != entry)
     {
@@ -318,11 +345,11 @@ static void db_update_db(verified_path_t * p_home_dir, htable_t * htable)
 
     // Attempt to resolve the path to the db file; This should never fail at
     // this point, but you can never be too sure
-    verified_path_t * p_db = f_ver_valid_resolve(p_home_dir, DB_NAME);
-    if (NULL == p_db)
+    verified_path_t * p_db_path = f_ver_valid_resolve(p_db->p_home_dir, DB_NAME);
+    if (NULL == p_db_path)
     {
         char home_dir[PATH_MAX] = {0};
-        f_path_repr(p_home_dir, home_dir, PATH_MAX);
+        f_path_repr(p_db_path, home_dir, PATH_MAX);
 
         fprintf(stderr, "[!] Could not create the database file "
                         "in %s/%s you may have to create it yourself\n",
@@ -331,14 +358,14 @@ static void db_update_db(verified_path_t * p_home_dir, htable_t * htable)
     }
 
     //*NOTE* That char_count - acc is written this is to omit the \0 from fprintf
-    file_op_t status = f_write_file(p_db, p_buffer, (char_count - accounts));
+    file_op_t status = f_write_file(p_db_path, p_buffer, (char_count - accounts));
     if (FILE_OP_FAILURE == status)
     {
         goto cleanup_file;
     }
     debug_print("%s\n", "[+] Successfully updated the .cape.db file");
 
-    verified_path_t * p_hash_file = update_db_hash(p_home_dir, p_db);
+    verified_path_t * p_hash_file = update_db_hash(p_db->p_home_dir, p_db_path);
     if (NULL == p_hash_file)
     {
         fprintf(stderr, "[!] Failed to update the .cape.hash file\n");
@@ -347,12 +374,12 @@ static void db_update_db(verified_path_t * p_home_dir, htable_t * htable)
 
     // Clean up
     free(p_buffer);
-    f_destroy_path(&p_db);
+    f_destroy_path(&p_db_path);
     f_destroy_path(&p_hash_file);
     return;
 
 cleanup_file:
-    f_destroy_path(&p_db);
+    f_destroy_path(&p_db_path);
 cleanup_buff:
     free(p_buffer);
 ret_null:

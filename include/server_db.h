@@ -15,9 +15,15 @@ extern "C" {
 #include <server_crypto.h>
 #include <hashtable.h>
 
-htable_t * db_init(verified_path_t * p_home_dir);
+typedef struct
+{
+    htable_t *          users_htable;
+    verified_path_t *   p_home_dir;
+} db_t;
 
-void db_shutdown(verified_path_t * p_home_dir, htable_t * htable);
+db_t * db_init(verified_path_t * p_home_dir);
+
+void db_shutdown(db_t ** pp_db);
 
 
 /*!
@@ -25,7 +31,7 @@ void db_shutdown(verified_path_t * p_home_dir, htable_t * htable);
  * database. If the username or password do not meet the size criteria a
  * credential error is returned.
  *
- * @param htable Pointer to the hashtable user database object
+ * @param p_db Pointer to the database object
  * @param username Pointer to the username
  * @param passwd Pointer to the password
  * @param permission Permission of the new user
@@ -33,8 +39,7 @@ void db_shutdown(verified_path_t * p_home_dir, htable_t * htable);
  * exists. OP_CRED_RULE_ERROR if username or password trigger a length rule.
  * Otherwise a OP_FAILURE is returned if some internal error occurred.
  */
-server_error_codes_t db_create_user(verified_path_t * p_home_dir,
-                                    htable_t * htable,
+server_error_codes_t db_create_user(db_t * p_db,
                                     const char * username,
                                     const char * passwd,
                                     perms_t permission);
