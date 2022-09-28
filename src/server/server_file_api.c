@@ -325,7 +325,7 @@ void f_destroy_path(verified_path_t ** pp_path)
  *
  * Usage:
  *  verified_path_t * p_db_dir = f_ver_valid_resolve(p_home_dir, path);
- *  file_op_t status = f_create_dir(p_db_dir);
+ *  server_error_codes_t status = f_create_dir(p_db_dir);
  *
  *
  * @param p_path Pointer to a verified_path_t object
@@ -354,9 +354,69 @@ server_error_codes_t f_del_file(verified_path_t * p_path)
 {
     if (NULL == p_path)
     {
-        return OP_FAILURE;
+        goto ret_null;
     }
+
+    struct stat stat_buff = {0};
+    if (-1 == stat(p_path->p_path, &stat_buff))
+    {
+        debug_print_err("[!] Unable to get stats for %s\n:Error: %s\n",
+                        p_path->p_path, strerror(errno));
+        goto ret_null;
+    }
+
+    // Check if the file path is a file
+    if (S_ISREG(stat_buff.st_mode))
+    {
+        if (-1 == unlink(p_path->p_path))
+        {
+            debug_print_err("[!] Unable to unlink %s\n:Error: %s\n",
+                            p_path->p_path, strerror(errno));
+            goto ret_null;
+        }
+    }
+    else if (S_ISDIR(stat_buff.st_mode))
+    {
+        // File count is used to count the number of files in the directory
+        // if the directory has only two files ("." and "..") then the directory
+        // is empty
+        uint8_t file_count = 0;
+        struct dirent * obj;
+        DIR * h_dir = opendir(p_path->p_path);
+        obj = readdir(h_dir);
+        while ((NULL != obj) && (file_count < 4))
+        {
+            file_count++;
+            obj = readdir(h_dir);
+        }
+        closedir(h_dir);
+        if (file_count > 2)
+        {
+            goto dir_not_empty;
+        }
+        else
+        {
+            if (-1 == rmdir(p_path->p_path))
+            {
+                debug_print_err("[!] Unable to remove directory %s\n:Error: %s\n",
+                                p_path->p_path, strerror(errno));
+                goto ret_null;
+            }
+        }
+    }
+    else
+    {
+        debug_print_err("[!] File %s is not a regular file or directory\n",
+                        p_path->p_path);
+        goto ret_null;
+    }
+
     return OP_SUCCESS;
+
+dir_not_empty:
+    return OP_DIR_NOT_EMPTY;
+ret_null:
+    return OP_FAILURE;
 }
 
 /*!

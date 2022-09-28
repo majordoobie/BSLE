@@ -13,6 +13,8 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <errno.h>
+#include <unistd.h>
+#include <dirent.h>
 
 #include <utils.h>
 #include <server_crypto.h>

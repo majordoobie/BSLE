@@ -165,3 +165,33 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple("/tmp/dir", "../dir/somefile.txt", "/tmp/dir/somefile.txt", true, true, true),
         std::make_tuple("NOT_TEST", "NOT_TEST", "NOT_TEST", true, true, true)
     ));
+
+// These tests have to be performed in order because of the ordering
+TEST(TestFileApi, InSequence)
+{
+    // Create the test directory
+    const std::filesystem::path test_dir{"/tmp/in_sequence"};
+    std::filesystem::remove_all(test_dir);
+    std::filesystem::create_directory(test_dir);
+
+    // Create the directory
+    verified_path_t * p_db_dir = f_valid_resolve(test_dir.c_str(), "dir_one");
+    server_error_codes_t status = f_create_dir(p_db_dir);
+    EXPECT_EQ(status, OP_SUCCESS);
+
+    // Add a file to the directory and try to delete the directory
+    std::ofstream {test_dir/"dir_one/somefile.txt"};
+    status = f_del_file(p_db_dir);
+    EXPECT_EQ(status, OP_DIR_NOT_EMPTY);
+
+    // Delete the file first, then try to delete the directory
+    verified_path_t * p_test_file = f_valid_resolve(test_dir.c_str(), "dir_one/somefile.txt");
+    status = f_del_file(p_test_file);
+    EXPECT_EQ(status, OP_SUCCESS);
+    status = f_del_file(p_db_dir);
+    EXPECT_EQ(status, OP_SUCCESS);
+
+    f_destroy_path(&p_db_dir);
+    f_destroy_path(&p_test_file);
+    std::filesystem::remove_all(test_dir);
+}
