@@ -321,12 +321,17 @@ void f_destroy_path(verified_path_t ** pp_path)
 
 /*!
  * @brief Simple wrapper for creating a directory using the verified_path_t
- * object
+ * object.
+ *
+ * Usage:
+ *  verified_path_t * p_db_dir = f_ver_valid_resolve(p_home_dir, path);
+ *  file_op_t status = f_create_dir(p_db_dir);
+ *
  *
  * @param p_path Pointer to a verified_path_t object
  * @return file_op_t indicating if the operation failed or succeeded
  */
-file_op_t f_create_dir(verified_path_t * p_path)
+server_error_codes_t f_create_dir(verified_path_t * p_path)
 {
     if ((NULL == p_path) || (NULL == p_path->p_path))
     {
@@ -339,10 +344,19 @@ file_op_t f_create_dir(verified_path_t * p_path)
         perror("mkdir");
         goto ret_null;
     }
-    return FILE_OP_SUCCESS;
+    return OP_SUCCESS;
 
 ret_null:
-    return FILE_OP_FAILURE;
+    return OP_FAILURE;
+}
+
+server_error_codes_t f_del_file(verified_path_t * p_path)
+{
+    if (NULL == p_path)
+    {
+        return OP_FAILURE;
+    }
+    return OP_SUCCESS;
 }
 
 /*!
@@ -380,7 +394,7 @@ ret_null:
  * @param stream_size Number of bytes in the byte stream
  * @return FILE_OP_SUCCESS if operation succeeded, otherwise FILE_OP_FAILURE
  */
-file_op_t f_write_file(verified_path_t * p_path,
+server_error_codes_t f_write_file(verified_path_t * p_path,
                        uint8_t * p_stream,
                        size_t stream_size)
 {
@@ -402,13 +416,14 @@ file_op_t f_write_file(verified_path_t * p_path,
                 p_path->p_path);
         goto cleanup;
     }
+
     fclose(h_path);
-    return FILE_OP_SUCCESS;
+    return OP_SUCCESS;
 
 cleanup:
     fclose(h_path);
 ret_null:
-    return FILE_OP_FAILURE;
+    return OP_FAILURE;
 }
 
 /*!

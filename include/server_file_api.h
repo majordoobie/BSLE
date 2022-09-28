@@ -16,13 +16,7 @@ extern "C" {
 
 #include <utils.h>
 #include <server_crypto.h>
-
-typedef enum
-{
-    FILE_OP_SUCCESS,
-    FILE_OP_FAILURE
-} file_op_t;
-
+#include "server.h"
 
 typedef struct verified_path verified_path_t;
 
@@ -129,6 +123,21 @@ void f_destroy_path(verified_path_t ** pp_path);
 FILE * f_open_file(verified_path_t * p_path, const char * p_read_mode);
 
 /*!
+ * @brief Destroy the file_content_t object
+ * @param pp_content Double pointer to the file_content_t object
+ */
+void f_destroy_content(file_content_t ** pp_content);
+
+
+/*
+ *
+ *
+ * User operations
+ *
+ *
+ */
+
+/*!
  * @brief Read wrapper is used to read the verified file path. If successful,
  * the data read is hashed and all the metadata about the stream is added
  * into the file_content_t object.
@@ -138,11 +147,6 @@ FILE * f_open_file(verified_path_t * p_path, const char * p_read_mode);
  */
 file_content_t * f_read_file(verified_path_t * p_path);
 
-/*!
- * @brief Destroy the file_content_t object
- * @param pp_content Double pointer to the file_content_t object
- */
-void f_destroy_content(file_content_t ** pp_content);
 
 /*!
  * @brief Simple wrapper to write the data stream to the verified file path
@@ -152,7 +156,7 @@ void f_destroy_content(file_content_t ** pp_content);
  * @param stream_size Number of bytes in the byte stream
  * @return FILE_OP_SUCCESS if operation succeeded, otherwise FILE_OP_FAILURE
  */
-file_op_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stream_size);
+server_error_codes_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stream_size);
 
 /*!
  * @brief Simple wrapper for creating a directory using the verified_path_t
@@ -161,7 +165,9 @@ file_op_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stre
  * @param p_path Pointer to a verified_path_t object
  * @return file_op_t indicating if the operation failed or succeeded
  */
-file_op_t f_create_dir(verified_path_t * p_path);
+server_error_codes_t f_create_dir(verified_path_t * p_path);
+
+server_error_codes_t f_del_file(verified_path_t * p_path);
 
 // HEADER GUARD
 #ifdef __cplusplus

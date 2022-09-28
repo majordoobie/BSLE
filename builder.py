@@ -1,4 +1,5 @@
 import argparse
+import shutil
 import subprocess
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -24,6 +25,9 @@ def main() -> None:
         _build(args)
         subprocess.run(f"ctest -j {cpu_count()} --test-dir build -E '^DBUserActions'", shell=True)
         subprocess.run(f"ctest -j 1 --test-dir build -R '^DBUserActions'", shell=True)
+        tmp = Path("/tmp")
+        shutil.rmtree(tmp/"dir", ignore_errors=True)
+        shutil.rmtree(tmp/"DBActions", ignore_errors=True)
         print("\n\n[!] Please note that two calls to `ctest` were made. The "
               "tests that were able to run in parallel ran first, the "
               "second test are the tests that needed to be ran in a single "
