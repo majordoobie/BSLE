@@ -329,7 +329,8 @@ void f_destroy_path(verified_path_t ** pp_path)
  *
  *
  * @param p_path Pointer to a verified_path_t object
- * @return file_op_t indicating if the operation failed or succeeded
+ * @retval OP_SUCCESS When the directory is created
+ * @retval OP_FAILURE When there is a creation error
  */
 server_error_codes_t f_create_dir(verified_path_t * p_path)
 {
@@ -350,6 +351,16 @@ ret_null:
     return OP_FAILURE;
 }
 
+/*!
+ * @brief Delete the file. If the file is of type directory, first check
+ * the the directory is empty. If it is empty, attempt to delete the directory.
+ *
+ * @param p_path Pointer to a verified_path_t object
+ * @retval OP_SUCCESS Successfully removed the file/directory
+ * @retval OP_DIR_NOT_EMPTY When attempting to delete a directory that is not
+ * empty
+ * @retval OP_FAILURE Server errors
+ */
 server_error_codes_t f_del_file(verified_path_t * p_path)
 {
     if (NULL == p_path)
