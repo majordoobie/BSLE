@@ -1,26 +1,29 @@
 #include <server_file_api.h>
 
+// Bytes needed to account for the "/" and a "\0"
+#define SLASH_PLUS_NULL 2
+
+
+static uint8_t * realloc_buff(uint8_t * p_buffer,
+                              size_t * p_size,
+                              size_t offset);
+static size_t get_file_size(verified_path_t * p_path, char name[256],
+                            uint16_t * num_len);
+DEBUG_STATIC char * join_and_resolve_paths(const char * p_root,
+                                           size_t root_length,
+                                           const char * p_child,
+                                           size_t child_length);
+static char * join_paths(const char * p_root, size_t root_length,
+                         const char * p_child, size_t child_length);
+
+
+// Simple structure is to ensure path paths passed to the API have already
+// been validated
 struct verified_path
 {
     char * p_path;
 };
 
-DEBUG_STATIC char * join_and_resolve_paths(const char * p_root,
-                                           size_t root_length,
-                                           const char * p_child,
-                                           size_t child_length);
-static char * join_paths(const char * p_root,
-                         size_t root_length,
-                         const char * p_child,
-                         size_t child_length);
-
-static uint8_t * realloc_buff(uint8_t * p_buffer, size_t * p_size, size_t offset);
-static size_t get_file_size(verified_path_t * p_path,
-                            char name[256],
-                            uint16_t * num_len);
-
-// Bytes needed to account for the "/" and a "\0"
-#define SLASH_PLUS_NULL 2
 
 /*!
  * @brief Access to the members of verified_path_t is private. But the need
@@ -614,6 +617,17 @@ ret_null:
     return NULL;
 }
 
+/*!
+ * @brief Iterate over all the files in the dir path provided and create
+ * a byte array with the file type [F] for file or [D] for dir along with
+ * the file size and file name.
+ *
+ * The data is stitched together using f_type:f_size:f_name\n
+ *
+ * @param p_path  Pointer to the path to list
+ * @return A file content containing the array of data to return or NULL if
+ * a failure occurred
+ */
 file_content_t * f_list_dir(verified_path_t * p_path)
 {
     uint8_t * p_buffer = NULL;
@@ -883,6 +897,15 @@ ret_null:
     return NULL;
 }
 
+/*!
+ * @brief Reallocate the buffer and memset the newly added portion
+ * of the buffer
+ *
+ * @param p_buffer Buffer to resize
+ * @param p_size Size to resize by
+ * @param offset Offset is the last portion initialized previously
+ * @return New pointer to the new buffer or NULL
+ */
 static uint8_t * realloc_buff(uint8_t * p_buffer, size_t * p_size, size_t offset)
 {
     *p_size = *p_size * 2;
@@ -899,6 +922,15 @@ static uint8_t * realloc_buff(uint8_t * p_buffer, size_t * p_size, size_t offset
     return p_buff;
 }
 
+/*!
+ * @brief Get the size of the file and the number of digits that represents
+ * the file size
+ *
+ * @param p_path Pointer to the verified file path
+ * @param name Name of the file
+ * @param num_len Number of integers that represents the file size
+ * @return Size of the file
+ */
 static size_t get_file_size(verified_path_t * p_path,
                             char name[256],
                             uint16_t * num_len)

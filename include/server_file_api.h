@@ -188,6 +188,17 @@ server_error_codes_t f_create_dir(verified_path_t * p_path);
  */
 server_error_codes_t f_del_file(verified_path_t * p_path);
 
+/*!
+ * @brief Iterate over all the files in the dir path provided and create
+ * a byte array with the file type [F] for file or [D] for dir along with
+ * the file size and file name.
+ *
+ * The data is stitched together using f_type:f_size:f_name\n
+ *
+ * @param p_path  Pointer to the path to list
+ * @return A file content containing the array of data to return or NULL if
+ * a failure occurred
+ */
 file_content_t * f_list_dir(verified_path_t * p_path);
 
 // HEADER GUARD
