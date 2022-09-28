@@ -1,5 +1,7 @@
 #include <server_db.h>
 
+// Macro is used to make dynamic string literal limits for the
+// scanf widths
 #define stringify(x) stringify2(x)
 #define stringify2(x) #x
 
@@ -177,6 +179,15 @@ ret_null:
     return NULL;
 }
 
+/*!
+ * @brief Remove the user from the database if they exist.
+ *
+ * @param p_db Pointer to the hashtable user database object
+ * @param username Pointer to the username
+ * @retval OP_SUCCESS On successful removal
+ * @retval OP_USER_EXISTS If the user does not exist
+ * @retval OP_FAILURE On server error
+ */
 server_error_codes_t db_remove_user(db_t * p_db, const char * username)
 {
     if ((NULL == p_db) || (NULL == username))
@@ -198,6 +209,9 @@ server_error_codes_t db_remove_user(db_t * p_db, const char * username)
         .permission = 0
     };
     free(p_user);
+
+    db_update_db(p_db);
+    debug_print("[+] User %s removed\n", username);
     return OP_SUCCESS;
 }
 
@@ -285,6 +299,12 @@ cred_failure:
     return OP_CRED_RULE_ERROR;
 }
 
+/*!
+ * @brief Update the database and hash file with the contents of the database
+ * then free the database to shutdown the server.
+ *
+ * @param pp_db Double pointer to the hashtable user database object
+ */
 void db_shutdown(db_t ** pp_db)
 {
     if ((NULL == pp_db) || (NULL == *pp_db))
