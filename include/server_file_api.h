@@ -188,7 +188,7 @@ server_error_codes_t f_create_dir(verified_path_t * p_path);
  */
 server_error_codes_t f_del_file(verified_path_t * p_path);
 
-uint8_t * f_list_dir(verified_path_t * p_path);
+file_content_t * f_list_dir(verified_path_t * p_path);
 
 // HEADER GUARD
 #ifdef __cplusplus

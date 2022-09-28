@@ -181,18 +181,29 @@ TEST(TestFileApi, InSequence)
 
     // Add a file to the directory and try to delete the directory
     std::ofstream {test_dir/"dir_one/somefile.txt"};
+    std::ofstream {test_dir/"dir_one/someother.txt"};
+    std::ofstream {test_dir/"dir_one/final.txt"};
+    std::filesystem::create_directory(test_dir/"dir_one/DER2");
     status = f_del_file(p_db_dir);
     EXPECT_EQ(status, OP_DIR_NOT_EMPTY);
-    f_list_dir(p_db_dir);
+
+    file_content_t * p_fc = f_list_dir(p_db_dir);
+    printf("%.*s", (int)p_fc->stream_size, (char *)p_fc->p_stream);
+    f_destroy_content(&p_fc);
 
     // Delete the file first, then try to delete the directory
     verified_path_t * p_test_file = f_valid_resolve(test_dir.c_str(), "dir_one/somefile.txt");
     status = f_del_file(p_test_file);
     EXPECT_EQ(status, OP_SUCCESS);
-    status = f_del_file(p_db_dir);
+
+    verified_path_t * p_db_dir2 = f_valid_resolve(test_dir.c_str(), "dir_one/DER2");
+    status = f_del_file(p_db_dir2);
     EXPECT_EQ(status, OP_SUCCESS);
+
+
 
     f_destroy_path(&p_db_dir);
     f_destroy_path(&p_test_file);
+    f_destroy_path(&p_db_dir2);
     std::filesystem::remove_all(test_dir);
 }

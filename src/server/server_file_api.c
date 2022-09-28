@@ -14,6 +14,8 @@ static char * join_paths(const char * p_root,
                          const char * p_child,
                          size_t child_length);
 
+static uint8_t * realloc_buff(uint8_t * p_buffer, size_t * p_size, size_t offset);
+
 // Bytes needed to account for the "/" and a "\0"
 #define SLASH_PLUS_NULL 2
 
@@ -609,8 +611,9 @@ ret_null:
     return NULL;
 }
 
-uint8_t * f_list_dir(verified_path_t * p_path)
+file_content_t * f_list_dir(verified_path_t * p_path)
 {
+    uint8_t * p_buffer = NULL;
     struct stat stat_buff = {0};
     if (-1 == stat(p_path->p_path, &stat_buff))
     {
@@ -619,38 +622,132 @@ uint8_t * f_list_dir(verified_path_t * p_path)
         goto ret_null;
     }
 
-    if (S_ISDIR(stat_buff.st_mode))
+    if (!S_ISDIR(stat_buff.st_mode))
     {
-        // Allocate a buffer that we can resize for the string output
-        size_t buff_size = 1024;
-        uint8_t * buffer = (uint8_t *)calloc(buff_size, sizeof(uint8_t));
-        if (UV_INVALID_ALLOC == verify_alloc(buffer))
-        {
-            goto ret_null;
-        }
-
-        struct dirent * obj;
-        DIR * h_dir = opendir(p_path->p_path);
-        obj = readdir(h_dir);
-        while (NULL != obj)
-        {
-            // obj->d_name is guaranteed to have a '\0'
-            if (((DT_REG == obj->d_type)
-                    || (DT_DIR == obj->d_type))
-                    && ((0 != strcmp(obj->d_name, ".")
-                         && (0 != strcmp(obj->d_name, "..")))
-                         ))
-            {
-                    printf("[%s] %s\n", (obj->d_type == DT_REG ? "F" : "D"), obj->d_name);
-            }
-            obj = readdir(h_dir);
-        }
-        closedir(h_dir);
+        fprintf(stderr, "[!] Path %s given is not a directory\n",
+                p_path->p_path);
+        goto ret_null;
     }
 
+
+    // Allocate a p_buffer that we can resize for the string output
+    size_t buff_size = 1024;
+    size_t offset = 0;
+    int writes = 0;
+    p_buffer = (uint8_t *)calloc(buff_size, sizeof(uint8_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_buffer))
+    {
+        goto ret_null;
+    }
+
+
+    struct dirent * obj;
+    DIR * h_dir = opendir(p_path->p_path);
+    if (NULL == h_dir)
+    {
+        fprintf(stderr, "[!] Could not open %s\nError: %s\n", p_path->p_path,
+                strerror(errno));
+        goto cleanup_buff;
+    }
+
+    // Iterate over the path given looking for:
+    // -> File types: dir or regular
+    // -> File names not "." or ".."
+    obj = readdir(h_dir);
+    while (NULL != obj)
+    {
+        // obj->d_name is guaranteed to have a '\0'
+        if (((DT_REG == obj->d_type)
+                || (DT_DIR == obj->d_type))
+                && ((0 != strcmp(obj->d_name, ".")
+                     && (0 != strcmp(obj->d_name, "..")))
+                     ))
+        {
+            // Check if the buffer has enough room to write the string
+            if ((strlen(obj->d_name) + offset) + 1 >= buff_size)
+            {
+                // realloc_buff will free the buffer on failure
+                p_buffer = realloc_buff(p_buffer, &buff_size, offset);
+                if (NULL == p_buffer)
+                {
+                    goto ret_null;
+                }
+            }
+            writes = sprintf((char *)(p_buffer + offset), "[%s] %s\n",
+                             (obj->d_type == DT_REG ? "F" : "D"),
+                             obj->d_name);
+            if (writes < 0)
+            {
+                fprintf(stderr, "[!] Write error reading directory\n");
+                goto cleanup_buff;
+            }
+            offset += (size_t)writes;
+        }
+        obj = readdir(h_dir);
+    }
+    closedir(h_dir);
+
+    // Create the buffer that is going to be returned
+    size_t str_len = strlen((char *)p_buffer);
+    uint8_t * p_buff = (uint8_t *)calloc(str_len, sizeof(uint8_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_buff))
+    {
+        goto cleanup_buff;
+    }
+
+    // Copy the data to the new memory block. This is what will be used
+    // from now on.
+    memcpy(p_buff, p_buffer, str_len);
+
+    // Hash the data stream
+    hash_t * p_hash = hash_byte_array(p_buff, str_len);
+    if (NULL == p_hash)
+    {
+        fprintf(stderr, "[!] Unable to hash the contents of "
+                        "%s", p_path->p_path);
+        goto cleanup_buff2;
+    }
+
+    // Create the file read content
+    file_content_t * p_content = (file_content_t *)malloc(sizeof(file_content_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_content))
+    {
+        goto cleanup_hash;
+    }
+
+    // Duplicate the file path, the verified path is not needed inside the
+    // contents structure
+    char * p_file_path = strdup(p_path->p_path);
+    if (UV_INVALID_ALLOC == verify_alloc(p_file_path))
+    {
+        goto cleanup_content;
+    }
+
+    // Save data into the content structure to return
+    *p_content = (file_content_t){
+        .p_stream       = p_buff,
+        .p_hash         = p_hash,
+        .stream_size    = str_len,
+        .p_path         = p_file_path
+    };
+
+    free(p_buffer);
+    return p_content;
+
+cleanup_content:
+    f_destroy_content(&p_content);
+cleanup_hash:
+    hash_destroy(&p_hash);
+cleanup_buff2:
+    free(p_buff);
+    p_buff = NULL;
+cleanup_buff:
+    free(p_buffer);
+    p_buffer = NULL;
 ret_null:
     return NULL;
 }
+
 
 /*!
  * @brief Destroy the file_content_t object
@@ -775,4 +872,20 @@ static char * join_paths(const char * p_root,
 
 ret_null:
     return NULL;
+}
+
+static uint8_t * realloc_buff(uint8_t * p_buffer, size_t * p_size, size_t offset)
+{
+    *p_size = *p_size * 2;
+    uint8_t * p_buff = (uint8_t *)realloc(p_buffer, *p_size);
+    if (UV_INVALID_ALLOC == verify_alloc(p_buff))
+    {
+        free(p_buffer);
+        p_buffer = NULL;
+        return NULL;
+    }
+
+    // Initialized the new portion of the realloc
+    memset(p_buff + offset, 0, (*p_size - offset));
+    return p_buff;
 }
