@@ -183,6 +183,7 @@ TEST(TestFileApi, InSequence)
     std::ofstream {test_dir/"dir_one/somefile.txt"};
     status = f_del_file(p_db_dir);
     EXPECT_EQ(status, OP_DIR_NOT_EMPTY);
+    f_list_dir(p_db_dir);
 
     // Delete the file first, then try to delete the directory
     verified_path_t * p_test_file = f_valid_resolve(test_dir.c_str(), "dir_one/somefile.txt");

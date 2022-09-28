@@ -609,6 +609,49 @@ ret_null:
     return NULL;
 }
 
+uint8_t * f_list_dir(verified_path_t * p_path)
+{
+    struct stat stat_buff = {0};
+    if (-1 == stat(p_path->p_path, &stat_buff))
+    {
+        debug_print_err("[!] Unable to get stats for %s\n:Error: %s\n",
+                        p_path->p_path, strerror(errno));
+        goto ret_null;
+    }
+
+    if (S_ISDIR(stat_buff.st_mode))
+    {
+        // Allocate a buffer that we can resize for the string output
+        size_t buff_size = 1024;
+        uint8_t * buffer = (uint8_t *)calloc(buff_size, sizeof(uint8_t));
+        if (UV_INVALID_ALLOC == verify_alloc(buffer))
+        {
+            goto ret_null;
+        }
+
+        struct dirent * obj;
+        DIR * h_dir = opendir(p_path->p_path);
+        obj = readdir(h_dir);
+        while (NULL != obj)
+        {
+            // obj->d_name is guaranteed to have a '\0'
+            if (((DT_REG == obj->d_type)
+                    || (DT_DIR == obj->d_type))
+                    && ((0 != strcmp(obj->d_name, ".")
+                         && (0 != strcmp(obj->d_name, "..")))
+                         ))
+            {
+                    printf("[%s] %s\n", (obj->d_type == DT_REG ? "F" : "D"), obj->d_name);
+            }
+            obj = readdir(h_dir);
+        }
+        closedir(h_dir);
+    }
+
+ret_null:
+    return NULL;
+}
+
 /*!
  * @brief Destroy the file_content_t object
  * @param pp_content Double pointer to the file_content_t object

@@ -15,6 +15,7 @@ extern "C" {
 #include <errno.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <ftw.h>
 
 #include <utils.h>
 #include <server_crypto.h>
@@ -186,6 +187,8 @@ server_error_codes_t f_create_dir(verified_path_t * p_path);
  * @retval OP_FAILURE Server errors
  */
 server_error_codes_t f_del_file(verified_path_t * p_path);
+
+uint8_t * f_list_dir(verified_path_t * p_path);
 
 // HEADER GUARD
 #ifdef __cplusplus
