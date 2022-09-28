@@ -135,6 +135,15 @@ TEST_F(DBUserActions, FailureUserCreate)
     EXPECT_EQ(res, OP_CRED_RULE_ERROR);
 }
 
+TEST_F(DBUserActions, UserDeletion)
+{
+    server_error_codes_t res = db_remove_user(this->user_db, "VooDooRanger");
+    EXPECT_EQ(res, OP_SUCCESS);
+
+    res = db_remove_user(this->user_db, "VooDooRanger");
+    EXPECT_EQ(res, OP_USER_EXISTS);
+}
+
 
 
 /*!

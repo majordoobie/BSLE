@@ -25,6 +25,8 @@ db_t * db_init(verified_path_t * p_home_dir);
 
 void db_shutdown(db_t ** pp_db);
 
+server_error_codes_t db_remove_user(db_t * p_db, const char * username);
+
 /*!
  * @brief The function looks up the user to see if they exist then the
  * password provided for authentication is hashed and checked against the

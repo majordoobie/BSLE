@@ -177,6 +177,30 @@ ret_null:
     return NULL;
 }
 
+server_error_codes_t db_remove_user(db_t * p_db, const char * username)
+{
+    if ((NULL == p_db) || (NULL == username))
+    {
+        return OP_FAILURE;
+    }
+
+    user_account_t * p_user = (user_account_t *)htable_del(p_db->users_htable, (void *)username, HT_FREE_PTR_FALSE);
+    if (NULL == p_user)
+    {
+        return OP_USER_EXISTS;
+    }
+
+    free(p_user->p_username);
+    hash_destroy(&p_user->p_hash);
+    *p_user = (user_account_t){
+        .p_username = NULL,
+        .p_hash     = NULL,
+        .permission = 0
+    };
+    free(p_user);
+    return OP_SUCCESS;
+}
+
 /*!
  * @brief Function attempts to create a new user and add it to the user
  * database. If the username or password do not meet the size criteria a
@@ -310,6 +334,7 @@ server_error_codes_t db_authenticate_user(db_t * p_db,
     *pp_user = (user_account_t *)htable_get(p_db->users_htable, (void *)username);
     if (NULL == *pp_user)
     {
+        debug_print("[!] User %s does not exist\n", username);
         return OP_USER_AUTH;
     }
 
@@ -324,10 +349,12 @@ server_error_codes_t db_authenticate_user(db_t * p_db,
     hash_destroy(&p_pw_hash);
     if (auth)
     {
+        debug_print("[+] User %s successfully authenticated\n", username);
         return OP_SUCCESS;
     }
     else
     {
+        debug_print("[!] Authentication failure for %s\n", username);
         *pp_user = NULL;
         return OP_USER_AUTH;
     }
