@@ -290,7 +290,7 @@ void db_shutdown(db_t ** pp_db)
  * stored hash. If they match the user account is returned.
  *
  * @param p_db Server database object
- * @param p_user Pointer to save the authenticated user to
+ * @param pp_user Pointer to save the authenticated user to
  * @param username Username provided for authentication
  * @param passwd Password provided for authentication
  * @retval OP_SUCCESS On successful authentication
@@ -298,7 +298,7 @@ void db_shutdown(db_t ** pp_db)
  * @retval OP_FAILURE Memory or API failures
  */
 server_error_codes_t db_authenticate_user(db_t * p_db,
-                                          user_account_t * p_user,
+                                          user_account_t ** pp_user,
                                           const char * username,
                                           const char * passwd)
 {
@@ -307,8 +307,8 @@ server_error_codes_t db_authenticate_user(db_t * p_db,
         return OP_FAILURE;
     }
 
-    p_user = htable_get(p_db->users_htable, (void *)username);
-    if (NULL == p_user)
+    *pp_user = (user_account_t *)htable_get(p_db->users_htable, (void *)username);
+    if (NULL == *pp_user)
     {
         return OP_USER_AUTH;
     }
@@ -320,7 +320,7 @@ server_error_codes_t db_authenticate_user(db_t * p_db,
     }
 
     // If passwords match, return success
-    bool auth = hash_hash_t_match(p_user->p_hash, p_pw_hash);
+    bool auth = hash_hash_t_match((*pp_user)->p_hash, p_pw_hash);
     hash_destroy(&p_pw_hash);
     if (auth)
     {
@@ -328,7 +328,7 @@ server_error_codes_t db_authenticate_user(db_t * p_db,
     }
     else
     {
-        p_user = NULL;
+        *pp_user = NULL;
         return OP_USER_AUTH;
     }
 }

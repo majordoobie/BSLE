@@ -77,8 +77,62 @@ TEST_F(DBUserActions, TestUserExists)
 TEST_F(DBUserActions, AuthSuccess)
 {
     user_account_t * p_user = NULL;
-    server_error_codes_t res = db_authenticate_user(this->user_db, p_user, "VooDooRanger", "New Belgium");
+    server_error_codes_t res = db_authenticate_user(this->user_db, &p_user,
+                                                    "VooDooRanger",
+                                                    "New Belgium");
     EXPECT_EQ(res, OP_SUCCESS);
+    EXPECT_NE(p_user, nullptr);
+}
+
+TEST_F(DBUserActions, AuthFailure)
+{
+    user_account_t * p_user = NULL;
+    server_error_codes_t res = db_authenticate_user(this->user_db, &p_user,
+                                                    "VooDooRanger",
+                                                    "New belgium");
+    EXPECT_EQ(res, OP_USER_AUTH);
+    EXPECT_EQ(p_user, nullptr);
+}
+
+TEST_F(DBUserActions, AuthLookupFailure)
+{
+    user_account_t * p_user = NULL;
+    server_error_codes_t res = db_authenticate_user(this->user_db, &p_user,
+                                                    "vooDooRanger",
+                                                    "New Belgium");
+    EXPECT_EQ(res, OP_USER_AUTH);
+    EXPECT_EQ(p_user, nullptr);
+}
+
+TEST_F(DBUserActions, FailureUserCreate)
+{
+    // Fails because username is less than 3 chars
+    server_error_codes_t res = db_create_user(
+        this->user_db,
+        "VD",
+        "New Belgium CO", READ);
+    EXPECT_EQ(res, OP_CRED_RULE_ERROR);
+
+    // Fails because username is greater than 20 chars
+    res = db_create_user(
+        this->user_db,
+        "VooDoo Ranger Juizy Haze",
+        "New Belgium CO", READ);
+    EXPECT_EQ(res, OP_CRED_RULE_ERROR);
+
+    // Fails because password is less than 6 chars
+    res = db_create_user(
+        this->user_db,
+        "VooDoo Ranger Juizy Haze",
+        "Belg", READ);
+    EXPECT_EQ(res, OP_CRED_RULE_ERROR);
+
+    // Fails because password is greater than 30 chars
+    res = db_create_user(
+        this->user_db,
+        "VooDoo Ranger Juizy Haze",
+        "New Belgium - Denver Colorado USA", READ);
+    EXPECT_EQ(res, OP_CRED_RULE_ERROR);
 }
 
 
