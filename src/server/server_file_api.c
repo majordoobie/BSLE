@@ -70,8 +70,7 @@ verified_path_t * f_set_home_dir(const char * p_home_dir, size_t dir_size)
 
     // Finally, create the verified_path_t object and set the path to the
     // verified path that "can" exist
-    verified_path_t
-        * p_path = (verified_path_t *)malloc(sizeof(verified_path_t));
+    verified_path_t * p_path = (verified_path_t *)malloc(sizeof(verified_path_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_path))
     {
         fprintf(stderr, "[!] Homedir path provided did not resolve\n");
