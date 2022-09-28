@@ -15,6 +15,9 @@ static char * join_paths(const char * p_root,
                          size_t child_length);
 
 static uint8_t * realloc_buff(uint8_t * p_buffer, size_t * p_size, size_t offset);
+static size_t get_file_size(verified_path_t * p_path,
+                            char name[256],
+                            uint16_t * num_len);
 
 // Bytes needed to account for the "/" and a "\0"
 #define SLASH_PLUS_NULL 2
@@ -663,8 +666,13 @@ file_content_t * f_list_dir(verified_path_t * p_path)
                      && (0 != strcmp(obj->d_name, "..")))
                      ))
         {
+            // Get the file size and the length of digits to represent the length
+            uint16_t num_length = 0;
+            size_t file_size = get_file_size(p_path, obj->d_name, &num_length);
+
             // Check if the buffer has enough room to write the string
-            if ((strlen(obj->d_name) + offset) + 1 >= buff_size)
+            // The 4 represents ":", ":", "\n", "\0"
+            if ((strlen(obj->d_name) + offset + num_length) + 4 >= buff_size)
             {
                 // realloc_buff will free the buffer on failure
                 p_buffer = realloc_buff(p_buffer, &buff_size, offset);
@@ -673,8 +681,9 @@ file_content_t * f_list_dir(verified_path_t * p_path)
                     goto ret_null;
                 }
             }
-            writes = sprintf((char *)(p_buffer + offset), "[%s] %s\n",
+            writes = sprintf((char *)(p_buffer + offset), "[%s]:%ld:%s\n",
                              (obj->d_type == DT_REG ? "F" : "D"),
+                             file_size,
                              obj->d_name);
             if (writes < 0)
             {
@@ -888,4 +897,34 @@ static uint8_t * realloc_buff(uint8_t * p_buffer, size_t * p_size, size_t offset
     // Initialized the new portion of the realloc
     memset(p_buff + offset, 0, (*p_size - offset));
     return p_buff;
+}
+
+static size_t get_file_size(verified_path_t * p_path,
+                            char name[256],
+                            uint16_t * num_len)
+{
+    struct stat stat_buff = {0};
+    char path[PATH_MAX] = {0};
+
+    // Both p_path and name are guaranteed to be null terminated
+    strcat(path, p_path->p_path);
+    strcat(path, "/");
+    strcat(path, name);
+
+    if (-1 == stat(path, &stat_buff))
+    {
+        debug_print_err("[!] Unable to get stats for %s\n:Error: %s\n",
+                        p_path->p_path, strerror(errno));
+        return 0;
+    }
+
+    *num_len = 1;
+    size_t size_copy = (size_t)stat_buff.st_size;
+    while (*num_len > 9)
+    {
+        size_copy /= 10;
+        (*num_len)++;
+    }
+
+    return (size_t)stat_buff.st_size;
 }

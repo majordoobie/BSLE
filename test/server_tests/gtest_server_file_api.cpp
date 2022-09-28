@@ -200,8 +200,6 @@ TEST(TestFileApi, InSequence)
     status = f_del_file(p_db_dir2);
     EXPECT_EQ(status, OP_SUCCESS);
 
-
-
     f_destroy_path(&p_db_dir);
     f_destroy_path(&p_test_file);
     f_destroy_path(&p_db_dir2);
