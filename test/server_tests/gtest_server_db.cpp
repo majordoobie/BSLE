@@ -74,14 +74,11 @@ TEST_F(DBUserActions, TestUserExists)
     EXPECT_EQ(res, OP_USER_EXISTS);
 }
 
-TEST_F(DBUserActions, Dud)
+TEST_F(DBUserActions, AuthSuccess)
 {
-    server_error_codes_t res = db_create_user(
-        this->user_db,
-        "VooDooRanger",
-        "New Belgium", READ);
-    EXPECT_EQ(res, OP_USER_EXISTS);
-
+    user_account_t * p_user = NULL;
+    server_error_codes_t res = db_authenticate_user(this->user_db, p_user, "VooDooRanger", "New Belgium");
+    EXPECT_EQ(res, OP_SUCCESS);
 }
 
 

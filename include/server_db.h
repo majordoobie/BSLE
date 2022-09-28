@@ -25,6 +25,23 @@ db_t * db_init(verified_path_t * p_home_dir);
 
 void db_shutdown(db_t ** pp_db);
 
+/*!
+ * @brief The function looks up the user to see if they exist then the
+ * password provided for authentication is hashed and checked against the
+ * stored hash. If they match the user account is returned.
+ *
+ * @param p_db Server database object
+ * @param p_user Pointer to save the authenticated user to
+ * @param username Username provided for authentication
+ * @param passwd Password provided for authentication
+ * @retval OP_SUCCESS On successful authentication
+ * @retval OP_USER_AUTH On user lookup failure or authentication failure
+ * @retval OP_FAILURE Memory or API failures
+ */
+server_error_codes_t db_authenticate_user(db_t * p_db,
+                                          user_account_t * p_user,
+                                          const char * username,
+                                          const char * passwd);
 
 /*!
  * @brief Function attempts to create a new user and add it to the user

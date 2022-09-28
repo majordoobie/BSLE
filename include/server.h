@@ -23,6 +23,7 @@ typedef enum
 //static const char * OP_4 = "User could not be created because it already exists";
 //static const char * OP_5 = "File could not be created because it already exists";
 //static const char * OP_6 = "Username must be between 3 and 20 characters and password must be between 6 and 32 characters";
+//static const char * OP_7 = "Either username or password is incorrect";
 //static const char * OP_255 = "Server action failed";
 
 typedef enum
@@ -33,6 +34,7 @@ typedef enum
     OP_USER_EXISTS         = 4,
     OP_FILE_EXISTS         = 5,
     OP_CRED_RULE_ERROR     = 6,
+    OP_USER_AUTH           = 7,
     OP_FAILURE             = 255
 } server_error_codes_t;
 

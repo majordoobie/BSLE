@@ -284,6 +284,55 @@ void db_shutdown(db_t ** pp_db)
     *pp_db  = NULL;
 }
 
+/*!
+ * @brief The function looks up the user to see if they exist then the
+ * password provided for authentication is hashed and checked against the
+ * stored hash. If they match the user account is returned.
+ *
+ * @param p_db Server database object
+ * @param p_user Pointer to save the authenticated user to
+ * @param username Username provided for authentication
+ * @param passwd Password provided for authentication
+ * @retval OP_SUCCESS On successful authentication
+ * @retval OP_USER_AUTH On user lookup failure or authentication failure
+ * @retval OP_FAILURE Memory or API failures
+ */
+server_error_codes_t db_authenticate_user(db_t * p_db,
+                                          user_account_t * p_user,
+                                          const char * username,
+                                          const char * passwd)
+{
+    if ((p_db == NULL) || (NULL == username) || (NULL == passwd))
+    {
+        return OP_FAILURE;
+    }
+
+    p_user = htable_get(p_db->users_htable, (void *)username);
+    if (NULL == p_user)
+    {
+        return OP_USER_AUTH;
+    }
+
+    hash_t * p_pw_hash = hash_byte_array((uint8_t *)passwd, strlen(passwd));
+    if (NULL == p_pw_hash)
+    {
+        return OP_FAILURE;
+    }
+
+    // If passwords match, return success
+    bool auth = hash_hash_t_match(p_user->p_hash, p_pw_hash);
+    hash_destroy(&p_pw_hash);
+    if (auth)
+    {
+        return OP_SUCCESS;
+    }
+    else
+    {
+        p_user = NULL;
+        return OP_USER_AUTH;
+    }
+}
+
 static void db_update_db(db_t * p_db)
 {
     if (NULL == p_db)
