@@ -19,6 +19,7 @@ typedef struct
 {
     htable_t *          users_htable;
     verified_path_t *   p_home_dir;
+    bool                _debug;   // Used to assist in unit testing do not use
 } db_t;
 
 /*!

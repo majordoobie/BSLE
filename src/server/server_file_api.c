@@ -74,12 +74,14 @@ verified_path_t * f_set_home_dir(const char * p_home_dir, size_t dir_size)
     if (UV_INVALID_ALLOC == verify_alloc(p_path))
     {
         fprintf(stderr, "[!] Homedir path provided did not resolve\n");
-        goto ret_null;
+        goto cleanup;
     }
 
     p_path->p_path = p_join_path;
     return p_path;
 
+cleanup:
+    free(p_join_path);
 ret_null:
     return NULL;
 }
