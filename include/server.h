@@ -27,6 +27,7 @@ typedef enum
     OP_CRED_RULE_ERROR     = 6,
     OP_USER_AUTH           = 7,
     OP_DIR_NOT_EMPTY       = 8,
+    OP_RESOLVE_ERROR       = 9,
     OP_FAILURE             = 255
 } ret_codes_t;
 

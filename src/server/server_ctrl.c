@@ -8,6 +8,7 @@ static const char * OP_5 = "File could not be created because it already exists"
 static const char * OP_6 = "Username must be between 3 and 20 characters and password must be between 6 and 32 characters";
 static const char * OP_7 = "Either p_username or password is incorrect";
 static const char * OP_8 = "Directory is not empty, cannot remove";
+static const char * OP_9 = "Path could not be resolved. This could be because it does not exist, or the path does not resolve within the home directory of the server";
 static const char * OP_255 = "Server action failed";
 
 
@@ -16,7 +17,7 @@ static void set_resp(act_resp_t ** pp_resp, ret_codes_t code);
 
 static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld);
 
-
+static ret_codes_t do_del_file(db_t * p_db, wire_payload_t * p_ld);
 /*!
  * @brief Function handles authenticating the user and calling the correct
  * API to perform the action requested.
@@ -62,21 +63,27 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
             {
                 case USR_ACT_CREATE_USER:
                 {
+                    // Ensure that the permission requested to be used
+                    // for the new user is equal or less than the permission
+                    // of the user performing the action
                     if (p_user->permission < p_ld->p_user_payload->user_perm)
                     {
                         set_resp(&p_resp, OP_PERMISSION_ERROR);
                         goto ret_resp;
                     }
-                    res = user_action(p_user_db, p_ld);
+                    set_resp(&p_resp, user_action(p_user_db, p_ld));
+                    goto ret_resp;
                 }
                 case USR_ACT_DELETE_USER:
                 {
+                    // Removal of users can only be performed by admins
                     if (ADMIN != p_ld->p_user_payload->user_perm)
                     {
                         set_resp(&p_resp, OP_PERMISSION_ERROR);
                         goto ret_resp;
                     }
-                    //TODO Call a deletion function call
+                    set_resp(&p_resp, user_action(p_user_db, p_ld));
+                    goto ret_resp;
                 }
                 default:
                 {
@@ -84,8 +91,7 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                     goto ret_resp;
                 }
             }
-        case ACT_LIST_REMOTE_DIRECTORY:break;
-        case ACT_GET_REMOTE_FILE:break;
+
 
         case ACT_DELETE_REMOTE_FILE:
         {
@@ -94,7 +100,8 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
-            // TODO Call function
+            set_resp(&p_resp, do_del_file(NULL, p_ld));
+            goto ret_resp;
         }
         case ACT_MAKE_REMOTE_DIRECTORY:
         {
@@ -104,6 +111,9 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                 goto ret_resp;
             }
         }
+
+        case ACT_LIST_REMOTE_DIRECTORY:break;
+        case ACT_GET_REMOTE_FILE:break;
         case ACT_PUT_REMOTE_FILE:
         {
             if (p_user->permission < READ_WRITE)
@@ -131,6 +141,26 @@ ret_null:
 }
 
 /*!
+ * @brief Delete the file specified by the payload
+ *
+ * @param p_user_db Pointer to the user_db object
+ * @param p_ld Pointer to the wire_payload object
+ * @return Returns the action response
+ */
+static ret_codes_t do_del_file(db_t * p_db, wire_payload_t * p_ld)
+{
+    std_payload_t * p_std = p_ld->p_std_payload;
+    verified_path_t * p_path = f_ver_path_resolve(p_db->p_home_dir, p_std->p_path);
+    if (NULL == p_path)
+    {
+        return OP_RESOLVE_ERROR;
+    }
+    ret_codes_t ret = f_del_file(p_path);
+    f_destroy_path(&p_path);
+    return ret;
+}
+
+/*!
  * @brief Function handles the user operations. The authentication and
  * permissions have already been checked before this point.
  *
@@ -145,16 +175,14 @@ static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld)
     {
         case USR_ACT_CREATE_USER:
         {
-            ret_codes_t resp = db_create_user(p_db,
-                                              p_usr_ld->p_username,
-                                              p_usr_ld->p_passwd,
-                                              p_usr_ld->user_perm);
-            return resp;
+            return db_create_user(p_db,
+                                  p_usr_ld->p_username,
+                                  p_usr_ld->p_passwd,
+                                  p_usr_ld->user_perm);
         }
         case USR_ACT_DELETE_USER:
         {
-            ret_codes_t resp = db_remove_user(p_db, p_usr_ld->p_username);
-            return resp;
+            return db_remove_user(p_db, p_usr_ld->p_username);
         }
         default:
         {
@@ -275,6 +303,8 @@ static const char * get_err_msg(ret_codes_t res)
             return OP_7;
         case OP_DIR_NOT_EMPTY:
             return OP_8;
+        case OP_RESOLVE_ERROR:
+            return OP_9;
         default:
             return OP_255;
     }
