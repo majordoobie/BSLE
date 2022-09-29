@@ -41,9 +41,21 @@ target_link_libraries(
         gtest_server_db
         PUBLIC
         server_file_api
+        server_ctrl
 )
 
-
+#add_executable(
+#        gtest_server_ctrl
+#        gtest_server_ctrl.cpp
+#)
+#target_link_libraries(
+#        gtest_server_ctrl
+#        PUBLIC
+#        server_ctrl
+#)
+#
+#
+#GTest_add_target(gtest_server_ctrl)
 GTest_add_target(gtest_server_db)
 GTest_add_target(gtest_server_crypto)
 GTest_add_target(gtest_server_file_api)

@@ -176,7 +176,7 @@ TEST(TestFileApi, InSequence)
 
     // Create the directory
     verified_path_t * p_db_dir = f_valid_resolve(test_dir.c_str(), "dir_one");
-    server_error_codes_t status = f_create_dir(p_db_dir);
+    ret_codes_t status = f_create_dir(p_db_dir);
     EXPECT_EQ(status, OP_SUCCESS);
 
     // Add a file to the directory and try to delete the directory

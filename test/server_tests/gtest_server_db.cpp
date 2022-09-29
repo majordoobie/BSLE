@@ -2,6 +2,7 @@
 #include <server_db.h>
 #include <filesystem>
 #include <fstream>
+#include <server_ctrl.h>
 
 // Variables are used to synchronize the threads in ctest -j $(nproc)
 static std::atomic_uint clear = 0;
@@ -80,7 +81,7 @@ class DBUserActions : public ::testing::Test
 TEST_F(DBUserActions, TestUserExists)
 {
 
-    server_error_codes_t res = db_create_user(
+    ret_codes_t res = db_create_user(
         this->user_db,
         "VooDooRanger",
         "New Belgium", READ);
@@ -90,9 +91,9 @@ TEST_F(DBUserActions, TestUserExists)
 TEST_F(DBUserActions, AuthSuccess)
 {
     user_account_t * p_user = NULL;
-    server_error_codes_t res = db_authenticate_user(this->user_db, &p_user,
-                                                    "VooDooRanger",
-                                                    "New Belgium");
+    ret_codes_t res = db_authenticate_user(this->user_db, &p_user,
+                                           "VooDooRanger",
+                                           "New Belgium");
     EXPECT_EQ(res, OP_SUCCESS);
     EXPECT_NE(p_user, nullptr);
 }
@@ -100,9 +101,9 @@ TEST_F(DBUserActions, AuthSuccess)
 TEST_F(DBUserActions, AuthFailure)
 {
     user_account_t * p_user = NULL;
-    server_error_codes_t res = db_authenticate_user(this->user_db, &p_user,
-                                                    "VooDooRanger",
-                                                    "New belgium");
+    ret_codes_t res = db_authenticate_user(this->user_db, &p_user,
+                                           "VooDooRanger",
+                                           "New belgium");
     EXPECT_EQ(res, OP_USER_AUTH);
     EXPECT_EQ(p_user, nullptr);
 }
@@ -110,23 +111,23 @@ TEST_F(DBUserActions, AuthFailure)
 TEST_F(DBUserActions, AuthLookupFailure)
 {
     user_account_t * p_user = NULL;
-    server_error_codes_t res = db_authenticate_user(this->user_db, &p_user,
-                                                    "vooDooRanger",
-                                                    "New Belgium");
+    ret_codes_t res = db_authenticate_user(this->user_db, &p_user,
+                                           "vooDooRanger",
+                                           "New Belgium");
     EXPECT_EQ(res, OP_USER_AUTH);
     EXPECT_EQ(p_user, nullptr);
 }
 
 TEST_F(DBUserActions, FailureUserCreate)
 {
-    // Fails because username is less than 3 chars
-    server_error_codes_t res = db_create_user(
+    // Fails because p_username is less than 3 chars
+    ret_codes_t res = db_create_user(
         this->user_db,
         "VD",
         "New Belgium CO", READ);
     EXPECT_EQ(res, OP_CRED_RULE_ERROR);
 
-    // Fails because username is greater than 20 chars
+    // Fails because p_username is greater than 20 chars
     res = db_create_user(
         this->user_db,
         "VooDoo Ranger Juizy Haze",
@@ -150,11 +151,20 @@ TEST_F(DBUserActions, FailureUserCreate)
 
 TEST_F(DBUserActions, UserDeletion)
 {
-    server_error_codes_t res = db_remove_user(this->user_db, "VDooRanger Imperial");
+    ret_codes_t res = db_remove_user(this->user_db, "VDooRanger Imperial");
     EXPECT_EQ(res, OP_SUCCESS);
 
     res = db_remove_user(this->user_db, "VDooRanger Imperial");
     EXPECT_EQ(res, OP_USER_EXISTS);
+}
+
+TEST_F(DBUserActions, TestUserAction_BadAuth)
+{
+    act_resp_t * resp = ctrl_parse_action(this->user_db, 0);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_USER_AUTH);
+    printf("%s\n", resp->msg);
+    ctrl_destroy(&resp);
 }
 
 

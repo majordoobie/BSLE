@@ -17,16 +17,6 @@ typedef enum
     MAX_PASSWD_LEN      = 32,
 } server_defaults_t;
 
-//static const char * OP_1 = "Server action was successful";
-//static const char * OP_2 = "Provided Session ID was invalid or expired";
-//static const char * OP_3 = "User associated with provided Session ID has insufficient permissions to perform the action";
-//static const char * OP_4 = "User could not be created because it already exists";
-//static const char * OP_5 = "File could not be created because it already exists";
-//static const char * OP_6 = "Username must be between 3 and 20 characters and password must be between 6 and 32 characters";
-//static const char * OP_7 = "Either username or password is incorrect";
-//static const char * OP_8 = "Directory is not empty, cannot remove";
-//static const char * OP_255 = "Server action failed";
-
 typedef enum
 {
     OP_SUCCESS             = 1,
@@ -38,7 +28,23 @@ typedef enum
     OP_USER_AUTH           = 7,
     OP_DIR_NOT_EMPTY       = 8,
     OP_FAILURE             = 255
-} server_error_codes_t;
+} ret_codes_t;
+
+typedef enum
+{
+    ACT_USER_OPERATION          = 1,
+    ACT_DELETE_REMOTE_FILE      = 2,
+    ACT_LIST_REMOTE_DIRECTORY   = 3,
+    ACT_GET_REMOTE_FILE         = 4,
+    ACT_MAKE_REMOTE_DIRECTORY   = 5,
+    ACT_PUT_REMOTE_FILE         = 6,
+} act_t;
+
+typedef enum
+{
+    USR_ACT_CREATE_USER         = 1,
+    USR_ACT_DELETE_USER         = 2
+} usr_act_t;
 
 typedef enum
 {

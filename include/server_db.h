@@ -45,12 +45,12 @@ void db_shutdown(db_t ** pp_db);
  * @brief Remove the user from the database if they exist.
  *
  * @param p_db Pointer to the hashtable user database object
- * @param username Pointer to the username
+ * @param username Pointer to the p_username
  * @retval OP_SUCCESS On successful removal
  * @retval OP_USER_EXISTS If the user does not exist
  * @retval OP_FAILURE On server error
  */
-server_error_codes_t db_remove_user(db_t * p_db, const char * username);
+ret_codes_t db_remove_user(db_t * p_db, const char * username);
 
 /*!
  * @brief The function looks up the user to see if they exist then the
@@ -65,28 +65,28 @@ server_error_codes_t db_remove_user(db_t * p_db, const char * username);
  * @retval OP_USER_AUTH On user lookup failure or authentication failure
  * @retval OP_FAILURE Memory or API failures
  */
-server_error_codes_t db_authenticate_user(db_t * p_db,
-                                          user_account_t ** pp_user,
-                                          const char * username,
-                                          const char * passwd);
+ret_codes_t db_authenticate_user(db_t * p_db,
+                                 user_account_t ** pp_user,
+                                 const char * username,
+                                 const char * passwd);
 
 /*!
  * @brief Function attempts to create a new user and add it to the user
- * database. If the username or password do not meet the size criteria a
+ * database. If the p_username or password do not meet the size criteria a
  * credential error is returned.
  *
  * @param p_db Pointer to the database object
- * @param username Pointer to the username
+ * @param username Pointer to the p_username
  * @param passwd Pointer to the password
  * @param permission Permission of the new user
  * @return OP_SUCCESS upon successful creation. OP_USER_EXISTS if user already
- * exists. OP_CRED_RULE_ERROR if username or password trigger a length rule.
+ * exists. OP_CRED_RULE_ERROR if p_username or password trigger a length rule.
  * Otherwise a OP_FAILURE is returned if some internal error occurred.
  */
-server_error_codes_t db_create_user(db_t * p_db,
-                                    const char * username,
-                                    const char * passwd,
-                                    perms_t permission);
+ret_codes_t db_create_user(db_t * p_db,
+                           const char * username,
+                           const char * passwd,
+                           perms_t permission);
 
 // HEADER GUARD
 #ifdef __cplusplus

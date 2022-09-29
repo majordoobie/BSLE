@@ -184,12 +184,12 @@ ret_null:
  * @brief Remove the user from the database if they exist.
  *
  * @param p_db Pointer to the hashtable user database object
- * @param username Pointer to the username
+ * @param username Pointer to the p_username
  * @retval OP_SUCCESS On successful removal
  * @retval OP_USER_EXISTS If the user does not exist
  * @retval OP_FAILURE On server error
  */
-server_error_codes_t db_remove_user(db_t * p_db, const char * username)
+ret_codes_t db_remove_user(db_t * p_db, const char * username)
 {
     if ((NULL == p_db) || (NULL == username))
     {
@@ -218,21 +218,21 @@ server_error_codes_t db_remove_user(db_t * p_db, const char * username)
 
 /*!
  * @brief Function attempts to create a new user and add it to the user
- * database. If the username or password do not meet the size criteria a
+ * database. If the p_username or password do not meet the size criteria a
  * credential error is returned.
  *
  * @param p_db Pointer to the hashtable user database object
- * @param username Pointer to the username
+ * @param username Pointer to the p_username
  * @param passwd Pointer to the password
  * @param permission Permission of the new user
  * @return OP_SUCCESS upon successful creation. OP_USER_EXISTS if user already
- * exists. OP_CRED_RULE_ERROR if username or password trigger a length rule.
+ * exists. OP_CRED_RULE_ERROR if p_username or password trigger a length rule.
  * Otherwise a OP_FAILURE is returned if some internal error occurred.
  */
-server_error_codes_t db_create_user(db_t * p_db,
-                                    const char * username,
-                                    const char * passwd,
-                                    perms_t permission)
+ret_codes_t db_create_user(db_t * p_db,
+                           const char * username,
+                           const char * passwd,
+                           perms_t permission)
 {
     if ((NULL == p_db)
          || (NULL == username)
@@ -256,7 +256,7 @@ server_error_codes_t db_create_user(db_t * p_db,
         goto user_exists;
     }
 
-    // Create the pointer for the username
+    // Create the pointer for the p_username
     char * p_username = strdup(username);
     if (UV_INVALID_ALLOC == verify_alloc(p_username))
     {
@@ -342,10 +342,10 @@ void db_shutdown(db_t ** pp_db)
  * @retval OP_USER_AUTH On user lookup failure or authentication failure
  * @retval OP_FAILURE Memory or API failures
  */
-server_error_codes_t db_authenticate_user(db_t * p_db,
-                                          user_account_t ** pp_user,
-                                          const char * username,
-                                          const char * passwd)
+ret_codes_t db_authenticate_user(db_t * p_db,
+                                 user_account_t ** pp_user,
+                                 const char * username,
+                                 const char * passwd)
 {
     if ((p_db == NULL) || (NULL == username) || (NULL == passwd))
     {
@@ -455,7 +455,7 @@ static void db_update_db(db_t * p_db)
     }
 
     //*NOTE* That char_count - acc is written this is to omit the \0 from fprintf
-    server_error_codes_t status = f_write_file(p_db_path, p_buffer, (char_count - accounts));
+    ret_codes_t status = f_write_file(p_db_path, p_buffer, (char_count - accounts));
     if (OP_FAILURE == status)
     {
         goto cleanup_file;
@@ -520,7 +520,7 @@ static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents)
         p_hash = NULL;
         p_username = NULL;
 
-        // Find the username:perm:pw_hash from the segment and
+        // Find the p_username:perm:pw_hash from the segment and
         // populate the variables
         res = sscanf(segment,
                      "%" stringify(MAX_USERNAME_LEN) "[^:]:%hhu:%"
@@ -547,7 +547,7 @@ static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents)
             goto ret_null;
         }
 
-        // Create the username pointer
+        // Create the p_username pointer
         p_username = strdup(username);
         if (UV_INVALID_ALLOC == verify_alloc(p_username))
         {
@@ -813,7 +813,7 @@ static verified_path_t * init_db_file(verified_path_t * p_home_dir)
     }
 
     //*NOTE* That array_size - 1 is written this is to omit the \0 from fprintf
-    server_error_codes_t status = f_write_file(p_db, p_buffer, array_size - 1);
+    ret_codes_t status = f_write_file(p_db, p_buffer, array_size - 1);
     if (OP_FAILURE == status)
     {
         goto cleanup_array;
@@ -848,7 +848,7 @@ static verified_path_t * init_db_dir(verified_path_t * p_home_dir)
         goto ret_null;
     }
 
-    server_error_codes_t status = f_create_dir(p_db_dir);
+    ret_codes_t status = f_create_dir(p_db_dir);
     if (OP_FAILURE == status)
     {
         fprintf(stderr, "[!] Could not create the database "
@@ -869,7 +869,7 @@ ret_null:
 /*!
  * @brief Callback is used for the users_htable
  * @param key Pointer to the key object to be hashed. In this case, it is
- * the users username
+ * the users p_username
  *
  * @return Hash value of the key
  */

@@ -333,14 +333,14 @@ void f_destroy_path(verified_path_t ** pp_path)
  *
  * Usage:
  *  verified_path_t * p_db_dir = f_ver_valid_resolve(p_home_dir, path);
- *  server_error_codes_t status = f_create_dir(p_db_dir);
+ *  ret_codes_t status = f_create_dir(p_db_dir);
  *
  *
  * @param p_path Pointer to a verified_path_t object
  * @retval OP_SUCCESS When the directory is created
  * @retval OP_FAILURE When there is a creation error
  */
-server_error_codes_t f_create_dir(verified_path_t * p_path)
+ret_codes_t f_create_dir(verified_path_t * p_path)
 {
     if ((NULL == p_path) || (NULL == p_path->p_path))
     {
@@ -369,7 +369,7 @@ ret_null:
  * empty
  * @retval OP_FAILURE Server errors
  */
-server_error_codes_t f_del_file(verified_path_t * p_path)
+ret_codes_t f_del_file(verified_path_t * p_path)
 {
     if (NULL == p_path)
     {
@@ -473,9 +473,9 @@ ret_null:
  * @param stream_size Number of bytes in the byte stream
  * @return FILE_OP_SUCCESS if operation succeeded, otherwise FILE_OP_FAILURE
  */
-server_error_codes_t f_write_file(verified_path_t * p_path,
-                       uint8_t * p_stream,
-                       size_t stream_size)
+ret_codes_t f_write_file(verified_path_t * p_path,
+                         uint8_t * p_stream,
+                         size_t stream_size)
 {
     if ((NULL == p_path) || (NULL == p_stream))
     {
