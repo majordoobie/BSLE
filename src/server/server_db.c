@@ -98,12 +98,12 @@ db_t * db_init(verified_path_t * p_home_dir)
     }
 
     // Read the contents of the db file and the hash file
-    file_content_t * p_db_contents = f_read_file(p_db_file);
+    file_content_t * p_db_contents = f_read_file(p_db_file, NULL);
     if (NULL == p_db_contents)
     {
         goto cleanup_hash;
     }
-    file_content_t * p_hash_contents = f_read_file(p_hash_file);
+    file_content_t * p_hash_contents = f_read_file(p_hash_file, NULL);
     if (NULL == p_hash_contents)
     {
         goto cleanup_db_content;

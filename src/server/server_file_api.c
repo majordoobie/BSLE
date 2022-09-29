@@ -513,10 +513,27 @@ ret_null:
  * @param p_path Pointer to a verified_path_t object
  * @return file_content_t object if successful, otherwise NULL
  */
-file_content_t * f_read_file(verified_path_t * p_path)
+file_content_t * f_read_file(verified_path_t * p_path, ret_codes_t * p_code)
 {
+    *p_code = OP_IO_ERROR;
     if (NULL == p_path)
     {
+        goto ret_null;
+    }
+
+    struct stat stat_buff = {0};
+    if (-1 == stat(p_path->p_path, &stat_buff))
+    {
+        debug_print_err("[!] Unable to get stats for %s\n:Error: %s\n",
+                        p_path->p_path, strerror(errno));
+        goto ret_null;
+    }
+
+    if (!S_ISREG(stat_buff.st_mode))
+    {
+        fprintf(stderr, "[!] Path %s given is not a regular file\n",
+                p_path->p_path);
+        *p_code = OP_PATH_NOT_FILE;
         goto ret_null;
     }
 
@@ -556,12 +573,12 @@ file_content_t * f_read_file(verified_path_t * p_path)
         (uint8_t *)calloc((unsigned long)file_size, sizeof(uint8_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_byte_array))
     {
+        *p_code = OP_FAILURE;
         goto cleanup_close;
     }
 
     // Read the contents into the p_byte_array created
-    size_t bytes_read =
-        fread(p_byte_array, sizeof(uint8_t), (unsigned long)file_size, h_path);
+    size_t bytes_read = fread(p_byte_array, sizeof(uint8_t), (unsigned long)file_size, h_path);
     fclose(h_path);
     if (bytes_read != (unsigned long)file_size)
     {
@@ -576,6 +593,7 @@ file_content_t * f_read_file(verified_path_t * p_path)
     {
         fprintf(stderr, "[!] Unable to hash the contents of "
                         "%s", p_path->p_path);
+        *p_code = OP_FAILURE;
         goto cleanup_array;
     }
 
@@ -584,6 +602,7 @@ file_content_t * f_read_file(verified_path_t * p_path)
         * p_content = (file_content_t *)malloc(sizeof(file_content_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_content))
     {
+        *p_code = OP_FAILURE;
         goto cleanup_hash;
     }
 
@@ -592,6 +611,7 @@ file_content_t * f_read_file(verified_path_t * p_path)
     char * p_file_path = strdup(p_path->p_path);
     if (UV_INVALID_ALLOC == verify_alloc(p_file_path))
     {
+        *p_code = OP_FAILURE;
         goto cleanup_content;
     }
 
@@ -603,6 +623,7 @@ file_content_t * f_read_file(verified_path_t * p_path)
         .p_path         = p_file_path
     };
 
+    *p_code = OP_SUCCESS;
     return p_content;
 
 cleanup_content:
@@ -628,8 +649,14 @@ ret_null:
  * @return A file content containing the array of data to return or NULL if
  * a failure occurred
  */
-file_content_t * f_list_dir(verified_path_t * p_path)
+file_content_t * f_list_dir(verified_path_t * p_path, ret_codes_t * p_code)
 {
+    *p_code = OP_IO_ERROR;
+    if (NULL == p_path)
+    {
+        goto ret_null;
+    }
+
     uint8_t * p_buffer = NULL;
     struct stat stat_buff = {0};
     if (-1 == stat(p_path->p_path, &stat_buff))
@@ -643,6 +670,7 @@ file_content_t * f_list_dir(verified_path_t * p_path)
     {
         fprintf(stderr, "[!] Path %s given is not a directory\n",
                 p_path->p_path);
+        *p_code = OP_PATH_NOT_DIR;
         goto ret_null;
     }
 
@@ -654,6 +682,7 @@ file_content_t * f_list_dir(verified_path_t * p_path)
     p_buffer = (uint8_t *)calloc(buff_size, sizeof(uint8_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_buffer))
     {
+        *p_code = OP_FAILURE;
         goto ret_null;
     }
 
@@ -692,6 +721,7 @@ file_content_t * f_list_dir(verified_path_t * p_path)
                 p_buffer = realloc_buff(p_buffer, &buff_size, offset);
                 if (NULL == p_buffer)
                 {
+                    *p_code = OP_FAILURE;
                     goto ret_null;
                 }
             }
@@ -715,6 +745,7 @@ file_content_t * f_list_dir(verified_path_t * p_path)
     uint8_t * p_buff = (uint8_t *)calloc(str_len, sizeof(uint8_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_buff))
     {
+        *p_code = OP_FAILURE;
         goto cleanup_buff;
     }
 
@@ -728,6 +759,7 @@ file_content_t * f_list_dir(verified_path_t * p_path)
     {
         fprintf(stderr, "[!] Unable to hash the contents of "
                         "%s", p_path->p_path);
+        *p_code = OP_FAILURE;
         goto cleanup_buff2;
     }
 
@@ -735,6 +767,7 @@ file_content_t * f_list_dir(verified_path_t * p_path)
     file_content_t * p_content = (file_content_t *)malloc(sizeof(file_content_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_content))
     {
+        *p_code = OP_FAILURE;
         goto cleanup_hash;
     }
 
@@ -743,6 +776,7 @@ file_content_t * f_list_dir(verified_path_t * p_path)
     char * p_file_path = strdup(p_path->p_path);
     if (UV_INVALID_ALLOC == verify_alloc(p_file_path))
     {
+        *p_code = OP_FAILURE;
         goto cleanup_content;
     }
 
@@ -754,6 +788,7 @@ file_content_t * f_list_dir(verified_path_t * p_path)
         .p_path         = p_file_path
     };
 
+    *p_code = OP_SUCCESS;
     free(p_buffer);
     return p_content;
 

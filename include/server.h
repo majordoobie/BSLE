@@ -28,6 +28,9 @@ typedef enum
     OP_USER_AUTH           = 7,
     OP_DIR_NOT_EMPTY       = 8,
     OP_RESOLVE_ERROR       = 9,
+    OP_PATH_NOT_DIR        = 10,
+    OP_PATH_NOT_FILE       = 11,
+    OP_IO_ERROR            = 254,
     OP_FAILURE             = 255
 } ret_codes_t;
 

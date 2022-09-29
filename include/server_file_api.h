@@ -148,7 +148,7 @@ void f_destroy_content(file_content_t ** pp_content);
  * @param p_path Pointer to a verified_path_t object
  * @return file_content_t object if successful, otherwise NULL
  */
-file_content_t * f_read_file(verified_path_t * p_path);
+file_content_t * f_read_file(verified_path_t * p_path, ret_codes_t * p_code);
 
 
 /*!
@@ -199,7 +199,7 @@ ret_codes_t f_del_file(verified_path_t * p_path);
  * @return A file content containing the array of data to return or NULL if
  * a failure occurred
  */
-file_content_t * f_list_dir(verified_path_t * p_path);
+file_content_t * f_list_dir(verified_path_t * p_path, ret_codes_t * p_code);
 
 // HEADER GUARD
 #ifdef __cplusplus

@@ -9,6 +9,9 @@ static const char * OP_6 = "Username must be between 3 and 20 characters and pas
 static const char * OP_7 = "Either p_username or password is incorrect";
 static const char * OP_8 = "Directory is not empty, cannot remove";
 static const char * OP_9 = "Path could not be resolved. This could be because it does not exist, or the path does not resolve within the home directory of the server";
+static const char * OP_10 = "Path provided is not of type directory.";
+static const char * OP_11 = "Path provided is not of type regular file.";
+static const char * OP_254 = "I/O error occurred during the action. This could be due to permissions, file not existing, or error while writing and reading.";
 static const char * OP_255 = "Server action failed";
 
 
@@ -20,6 +23,10 @@ static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld);
 static ret_codes_t do_del_file(db_t * p_db, wire_payload_t * p_ld);
 static ret_codes_t do_make_dir(db_t * p_db, wire_payload_t * p_ld);
 static ret_codes_t do_put_file(db_t * p_db, wire_payload_t * p_ld);
+static void do_list_dir(db_t * p_db,
+                        wire_payload_t * p_ld,
+                        act_resp_t ** pp_resp);
+static void do_get_file(db_t * p_db, wire_payload_t * p_ld, act_resp_t ** pp_resp);
 /*!
  * @brief Function handles authenticating the user and calling the correct
  * API to perform the action requested.
@@ -41,8 +48,9 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
         goto ret_null;
     }
     *p_resp = (act_resp_t){
-        .msg    = NULL,
-        .result = OP_SUCCESS
+        .msg        = NULL,
+        .result     = OP_SUCCESS,
+        .p_content  = NULL
     };
 
     // Authenticate the user
@@ -121,8 +129,6 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
             goto ret_resp;
         }
 
-        case ACT_LIST_REMOTE_DIRECTORY:break;
-        case ACT_GET_REMOTE_FILE:break;
         case ACT_PUT_REMOTE_FILE:
         {
             if (p_user->permission < READ_WRITE)
@@ -133,6 +139,15 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
             set_resp(&p_resp, do_put_file(p_user_db, p_ld));
             goto ret_resp;
         }
+
+        case ACT_LIST_REMOTE_DIRECTORY:
+        {
+            do_list_dir(p_user_db, p_ld, &p_resp);
+            goto ret_resp;
+        }
+        case ACT_GET_REMOTE_FILE:
+            do_get_file(p_user_db, p_ld, &p_resp);
+            goto ret_resp;
         default:
         {
             set_resp(&p_resp, OP_FAILURE);
@@ -149,6 +164,72 @@ ret_resp:
     return p_resp;
 ret_null:
     return NULL;
+}
+
+/*!
+ * @brief Function reads the file on disk if found and saves the contents
+ * to the response object
+ *
+ * @param p_user_db Pointer to the user_db object
+ * @param p_ld Pointer to the wire_payload object
+ * @param pp_resp Double pointer to the response object. The status code,
+ * status message and the data requested will be saved to this object
+ */
+static void do_get_file(db_t * p_db, wire_payload_t * p_ld, act_resp_t ** pp_resp)
+{
+    std_payload_t * p_std = p_ld->p_std_payload;
+    verified_path_t * p_path = f_ver_path_resolve(p_db->p_home_dir, p_std->p_path);
+    if (NULL == p_path)
+    {
+        set_resp(pp_resp, OP_RESOLVE_ERROR);
+        return;
+    }
+
+    ret_codes_t code = OP_SUCCESS;
+    file_content_t * p_content = f_read_file(p_path, &code);
+    if (NULL == p_content)
+    {
+        set_resp(pp_resp, code);
+        return;
+    }
+
+    set_resp(pp_resp, OP_SUCCESS);
+    (*pp_resp)->p_content = p_content;
+    return;
+}
+
+/*!
+ * @brief Function reads the directory contents of the path provided by the
+ * payload and writes the information into the f_content field of the resp
+ *
+ * @param p_user_db Pointer to the user_db object
+ * @param p_ld Pointer to the wire_payload object
+ * @param pp_resp Double pointer to the response object. The status code,
+ * status message and the data requested will be saved to this object
+ */
+static void do_list_dir(db_t * p_db,
+                        wire_payload_t * p_ld,
+                        act_resp_t ** pp_resp)
+{
+    std_payload_t * p_std = p_ld->p_std_payload;
+    verified_path_t * p_path = f_ver_path_resolve(p_db->p_home_dir, p_std->p_path);
+    if (NULL == p_path)
+    {
+        set_resp(pp_resp, OP_RESOLVE_ERROR);
+        return;
+    }
+
+    ret_codes_t code = OP_SUCCESS;
+    file_content_t * p_content = f_list_dir(p_path, &code);
+    if (NULL == p_content)
+    {
+        set_resp(pp_resp, code);
+        return;
+    }
+
+    set_resp(pp_resp, OP_SUCCESS);
+    (*pp_resp)->p_content = p_content;
+    return;
 }
 
 /*!
@@ -264,13 +345,19 @@ void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
     {
         return;
     }
+    act_resp_t * p_res = *pp_res;
+    if (NULL != p_res->p_content)
+    {
+        f_destroy_content(&p_res->p_content);
+    }
 
     // Destroy the act_resp_t
-    **pp_res = (act_resp_t){
-        .msg    = NULL,
-        .result = 0
+    *p_res = (act_resp_t){
+        .msg        = NULL,
+        .p_content  = NULL,
+        .result     = 0
     };
-    free(*pp_res);
+    free(p_res);
     *pp_res = NULL;
 
     if ((NULL == pp_payload) || (NULL == *pp_payload))
@@ -366,6 +453,12 @@ static const char * get_err_msg(ret_codes_t res)
             return OP_8;
         case OP_RESOLVE_ERROR:
             return OP_9;
+        case OP_PATH_NOT_DIR:
+            return OP_10;
+        case OP_PATH_NOT_FILE:
+            return OP_11;
+        case OP_IO_ERROR:
+            return OP_254;
         default:
             return OP_255;
     }
