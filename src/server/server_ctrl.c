@@ -17,23 +17,22 @@ static const char * OP_255 = "Server action failed";
 
 static const char * get_err_msg(ret_codes_t res);
 static void set_resp(act_resp_t ** pp_resp, ret_codes_t code);
-
 static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld);
-
 static ret_codes_t do_del_file(db_t * p_db, wire_payload_t * p_ld);
 static ret_codes_t do_make_dir(db_t * p_db, wire_payload_t * p_ld);
 static ret_codes_t do_put_file(db_t * p_db, wire_payload_t * p_ld);
+static void do_get_file(db_t * p_db, wire_payload_t * p_ld, act_resp_t ** pp_resp);
 static void do_list_dir(db_t * p_db,
                         wire_payload_t * p_ld,
                         act_resp_t ** pp_resp);
-static void do_get_file(db_t * p_db, wire_payload_t * p_ld, act_resp_t ** pp_resp);
 /*!
  * @brief Function handles authenticating the user and calling the correct
  * API to perform the action requested.
  *
  * @param p_user_db Pointer to the user_db object
  * @param p_ld Pointer to the wire_payload object
- * @return Response object containing the response code and the response message
+ * @return Response object containing the response code, response message,
+ * and a f_content object if available.
  */
 act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
 {
@@ -154,11 +153,6 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
             goto ret_resp;
         }
     }
-
-
-    // Set success and return
-    set_resp(&p_resp, OP_SUCCESS);
-    return p_resp;
 
 ret_resp:
     return p_resp;
