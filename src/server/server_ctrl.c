@@ -19,6 +19,7 @@ static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld);
 
 static ret_codes_t do_del_file(db_t * p_db, wire_payload_t * p_ld);
 static ret_codes_t do_make_dir(db_t * p_db, wire_payload_t * p_ld);
+static ret_codes_t do_put_file(db_t * p_db, wire_payload_t * p_ld);
 /*!
  * @brief Function handles authenticating the user and calling the correct
  * API to perform the action requested.
@@ -29,6 +30,11 @@ static ret_codes_t do_make_dir(db_t * p_db, wire_payload_t * p_ld);
  */
 act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
 {
+    if ((NULL == p_user_db) || (NULL == p_ld))
+    {
+        goto ret_null;
+    }
+
     act_resp_t * p_resp = (act_resp_t *)malloc(sizeof(act_resp_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_resp))
     {
@@ -124,6 +130,8 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
+            set_resp(&p_resp, do_put_file(p_user_db, p_ld));
+            goto ret_resp;
         }
         default:
         {
@@ -141,6 +149,36 @@ ret_resp:
     return p_resp;
 ret_null:
     return NULL;
+}
+
+/*!
+ * @brief Put the file on the server IF the file does not already exist. If
+ * the file exist, return an error indicating so.
+ *
+ * @param p_user_db Pointer to the user_db object
+ * @param p_ld Pointer to the wire_payload object
+ * @return Returns the action response
+ */
+static ret_codes_t do_put_file(db_t * p_db, wire_payload_t * p_ld)
+{
+    std_payload_t * p_std = p_ld->p_std_payload;
+    verified_path_t * p_path = f_ver_path_resolve(p_db->p_home_dir, p_std->p_path);
+    if (NULL != p_path)
+    {
+        f_destroy_path(&p_path);
+        return OP_FILE_EXISTS;
+    }
+    p_path = f_ver_path_resolve(p_db->p_home_dir, p_std->p_path);
+    if (NULL == p_path) // This should not happen but just in case
+    {
+        return OP_RESOLVE_ERROR;
+    }
+    ret_codes_t ret = f_write_file(p_path,
+                                   p_std->p_byte_stream,
+                                   p_std->byte_stream_len);
+    f_destroy_path(&p_path);
+    return ret;
+
 }
 
 /*!
