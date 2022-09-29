@@ -14,6 +14,17 @@ static const char * OP_255 = "Server action failed";
 static const char * get_err_msg(ret_codes_t res);
 static void set_resp(act_resp_t ** pp_resp, ret_codes_t code);
 
+static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld);
+
+
+/*!
+ * @brief Function handles authenticating the user and calling the correct
+ * API to perform the action requested.
+ *
+ * @param p_user_db Pointer to the user_db object
+ * @param p_ld Pointer to the wire_payload object
+ * @return Response object containing the response code and the response message
+ */
 act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
 {
     act_resp_t * p_resp = (act_resp_t *)malloc(sizeof(act_resp_t));
@@ -50,49 +61,62 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
             switch (p_ld->p_user_payload->user_flag)
             {
                 case USR_ACT_CREATE_USER:
+                {
                     if (p_user->permission < p_ld->p_user_payload->user_perm)
                     {
                         set_resp(&p_resp, OP_PERMISSION_ERROR);
                         goto ret_resp;
                     }
-                    // TODO add call toc reate user
+                    res = user_action(p_user_db, p_ld);
+                }
                 case USR_ACT_DELETE_USER:
+                {
                     if (ADMIN != p_ld->p_user_payload->user_perm)
                     {
                         set_resp(&p_resp, OP_PERMISSION_ERROR);
                         goto ret_resp;
                     }
                     //TODO Call a deletion function call
+                }
                 default:
+                {
                     set_resp(&p_resp, OP_FAILURE);
                     goto ret_resp;
-
+                }
             }
         case ACT_LIST_REMOTE_DIRECTORY:break;
         case ACT_GET_REMOTE_FILE:break;
 
         case ACT_DELETE_REMOTE_FILE:
+        {
             if (p_user->permission < READ_WRITE)
             {
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
             // TODO Call function
+        }
         case ACT_MAKE_REMOTE_DIRECTORY:
+        {
             if (p_user->permission < READ_WRITE)
             {
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
+        }
         case ACT_PUT_REMOTE_FILE:
+        {
             if (p_user->permission < READ_WRITE)
             {
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
+        }
         default:
+        {
             set_resp(&p_resp, OP_FAILURE);
             goto ret_resp;
+        }
     }
 
 
@@ -107,6 +131,39 @@ ret_null:
 }
 
 /*!
+ * @brief Function handles the user operations. The authentication and
+ * permissions have already been checked before this point.
+ *
+ * @param p_user_db Pointer to the user_db object
+ * @param p_ld Pointer to the wire_payload object
+ * @return Returns the action response
+ */
+static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld)
+{
+    user_payload_t * p_usr_ld = p_ld->p_user_payload;
+    switch (p_usr_ld->user_flag)
+    {
+        case USR_ACT_CREATE_USER:
+        {
+            ret_codes_t resp = db_create_user(p_db,
+                                              p_usr_ld->p_username,
+                                              p_usr_ld->p_passwd,
+                                              p_usr_ld->user_perm);
+            return resp;
+        }
+        case USR_ACT_DELETE_USER:
+        {
+            ret_codes_t resp = db_remove_user(p_db, p_usr_ld->p_username);
+            return resp;
+        }
+        default:
+        {
+            return OP_FAILURE;
+        }
+    }
+}
+
+/*!
  * @brief Destroy the payload and response objects
  *
  * @param pp_payload Double pointer to the payload object
@@ -114,8 +171,7 @@ ret_null:
  */
 void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
 {
-    if ((NULL == pp_res) || (NULL == *pp_res)
-         || (NULL == pp_payload) || (NULL == *pp_payload))
+    if ((NULL == pp_res) || (NULL == *pp_res))
     {
         return;
     }
@@ -128,6 +184,10 @@ void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
     free(*pp_res);
     *pp_res = NULL;
 
+    if ((NULL == pp_payload) || (NULL == *pp_payload))
+    {
+        return;
+    }
 
     // Destroy the wire_payload_t
     wire_payload_t * p_payload = *pp_payload;

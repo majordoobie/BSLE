@@ -164,7 +164,7 @@ TEST_F(DBUserActions, TestUserAction_BadAuth)
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_USER_AUTH);
     printf("%s\n", resp->msg);
-    ctrl_destroy(&resp);
+    ctrl_destroy(NULL, &resp);
 }
 
 

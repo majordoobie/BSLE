@@ -225,9 +225,10 @@ ret_codes_t db_remove_user(db_t * p_db, const char * username)
  * @param username Pointer to the p_username
  * @param passwd Pointer to the password
  * @param permission Permission of the new user
- * @return OP_SUCCESS upon successful creation. OP_USER_EXISTS if user already
- * exists. OP_CRED_RULE_ERROR if p_username or password trigger a length rule.
- * Otherwise a OP_FAILURE is returned if some internal error occurred.
+ * @retval OP_SUCCESS upon successful creation.
+ * @retval OP_USER_EXISTS if user already exists.
+ * @retval OP_CRED_RULE_ERROR if p_username or password trigger a length rule.
+ * @retval OP_FAILURE is returned if some internal error occurred.
  */
 ret_codes_t db_create_user(db_t * p_db,
                            const char * username,
