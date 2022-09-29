@@ -18,6 +18,7 @@ static void set_resp(act_resp_t ** pp_resp, ret_codes_t code);
 static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld);
 
 static ret_codes_t do_del_file(db_t * p_db, wire_payload_t * p_ld);
+static ret_codes_t do_make_dir(db_t * p_db, wire_payload_t * p_ld);
 /*!
  * @brief Function handles authenticating the user and calling the correct
  * API to perform the action requested.
@@ -100,7 +101,7 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
-            set_resp(&p_resp, do_del_file(NULL, p_ld));
+            set_resp(&p_resp, do_del_file(p_user_db, p_ld));
             goto ret_resp;
         }
         case ACT_MAKE_REMOTE_DIRECTORY:
@@ -110,6 +111,8 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
+            set_resp(&p_resp, do_make_dir(p_user_db, p_ld));
+            goto ret_resp;
         }
 
         case ACT_LIST_REMOTE_DIRECTORY:break;
@@ -138,6 +141,26 @@ ret_resp:
     return p_resp;
 ret_null:
     return NULL;
+}
+
+/*!
+ * @brief Create the directory specified by the payload
+ *
+ * @param p_user_db Pointer to the user_db object
+ * @param p_ld Pointer to the wire_payload object
+ * @return Returns the action response
+ */
+static ret_codes_t do_make_dir(db_t * p_db, wire_payload_t * p_ld)
+{
+    std_payload_t * p_std = p_ld->p_std_payload;
+    verified_path_t * p_path = f_ver_valid_resolve(p_db->p_home_dir, p_std->p_path);
+    if (NULL == p_path)
+    {
+        return OP_RESOLVE_ERROR;
+    }
+    ret_codes_t ret = f_create_dir(p_path);
+    f_destroy_path(&p_path);
+    return ret;
 }
 
 /*!
