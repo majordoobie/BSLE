@@ -1,12 +1,19 @@
 #include <server_file_api.h>
 
 // Bytes needed to account for the "/" and a "\0"
-#define SLASH_PLUS_NULL 2
+#define SLASH_PLUS_2 2
 
 // Files to ignore
 extern const char * DB_DIR;
 extern const char * DB_NAME;
 extern const char * DB_HASH;
+
+// Simple structure is to ensure path paths passed to the API have already
+// been validated
+struct verified_path
+{
+    char * p_path;
+};
 
 static uint8_t * realloc_buff(uint8_t * p_buffer,
                               size_t * p_size,
@@ -21,12 +28,6 @@ static char * join_paths(const char * p_root, size_t root_length,
                          const char * p_child, size_t child_length);
 
 
-// Simple structure is to ensure path paths passed to the API have already
-// been validated
-struct verified_path
-{
-    char * p_path;
-};
 
 
 /*!
@@ -267,7 +268,7 @@ verified_path_t * f_path_resolve(const char * p_home_dir, const char * p_child)
     size_t home_dir_len = strlen(p_home_dir);
     size_t child_len = strlen(p_child);
 
-    if ((home_dir_len + child_len + SLASH_PLUS_NULL) > PATH_MAX)
+    if ((home_dir_len + child_len + SLASH_PLUS_2) > PATH_MAX)
     {
         fprintf(stderr, "[!] Resolve path exceeds the file path "
                         "character limit\n");
