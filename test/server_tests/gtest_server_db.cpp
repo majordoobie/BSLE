@@ -249,6 +249,16 @@ TEST_F(DBUserActions, TestUserAction_DeleteUserNotExist)
     ctrl_destroy(NULL, &resp);
 }
 
+TEST_F(DBUserActions, TestUserAction_DeleteUser)
+{
+    this->payload2->p_user_payload->user_flag = USR_ACT_DELETE_USER;
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload2);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_SUCCESS);
+    ctrl_destroy(NULL, &resp);
+}
+
 
 
 
