@@ -96,14 +96,15 @@ db_t * db_init(verified_path_t * p_home_dir)
                         missing, exist, home_dir, DB_DIR, missing, exist);
         goto cleanup_hash;
     }
+    ret_codes_t code;
 
     // Read the contents of the db file and the hash file
-    file_content_t * p_db_contents = f_read_file(p_db_file, NULL);
+    file_content_t * p_db_contents = f_read_file(p_db_file, &code);
     if (NULL == p_db_contents)
     {
         goto cleanup_hash;
     }
-    file_content_t * p_hash_contents = f_read_file(p_hash_file, NULL);
+    file_content_t * p_hash_contents = f_read_file(p_hash_file, &code);
     if (NULL == p_hash_contents)
     {
         goto cleanup_db_content;
@@ -152,7 +153,11 @@ db_t * db_init(verified_path_t * p_home_dir)
         goto cleanup_hash_content;
     }
 
-    populate_htable(htable, p_db_contents);
+    int res = populate_htable(htable, p_db_contents);
+    if (-1 == res)
+    {
+        goto cleanup_htable;
+    }
     f_destroy_content(&p_db_contents);
 
     db_t * p_db = (db_t *)malloc(sizeof(db_t));
@@ -299,6 +304,29 @@ user_exists:
     return OP_USER_EXISTS;
 cred_failure:
     return OP_CRED_RULE_ERROR;
+}
+
+void destroy_resp(act_resp_t ** pp_resp)
+{
+    if ((NULL == pp_resp) || (NULL == *pp_resp))
+    {
+        return;
+    }
+
+    act_resp_t * p_resp = *pp_resp;
+    if (NULL != p_resp->p_content)
+    {
+        f_destroy_content(&p_resp->p_content);
+    }
+
+    // Destroy the act_resp_t
+    *p_resp = (act_resp_t){
+        .msg        = NULL,
+        .p_content  = NULL,
+        .result     = 0
+    };
+    free(p_resp);
+    *pp_resp = NULL;
 }
 
 /*!
@@ -511,8 +539,9 @@ static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents)
     char * p_username;
 
     int res = 0;
+    size_t total_read = 0;
     char * segment = (char *)p_contents->p_stream;
-    while (NULL != segment)
+    while ((NULL != segment) && (total_read < p_contents->stream_size))
     {
         // Reset the copy variables for the next segment
         perm = 0;
@@ -538,6 +567,11 @@ static int8_t populate_htable(htable_t * p_htable, file_content_t * p_contents)
             fprintf(stderr, "[!] Invalid db format detected\n");
             goto ret_null;
         }
+
+        total_read += 4; // For the single byte permission and ":" ":" "\n"
+        total_read += strlen(username);
+        total_read += strlen(pw_hash);
+
 
         // Convert the string hash to a hash_t object
         p_hash = hex_char_to_byte_array(pw_hash, strlen(pw_hash));
@@ -601,15 +635,16 @@ static bool get_stored_data(file_content_t * p_content)
         goto ret_null;
     }
 
-    size_t data_size = p_content->stream_size - sizeof(MAGIC_BYTES);
+    size_t magic_size = sizeof(MAGIC_BYTES);
+    size_t data_size = p_content->stream_size - magic_size;
 
     // With the magic bytes verified, make room for the actual content
-    uint8_t * p_stream = (uint8_t *)calloc(data_size,sizeof(uint8_t));
+    uint8_t * p_stream = (uint8_t *)calloc(data_size, sizeof(uint8_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_stream))
     {
         goto ret_null;
     }
-    memcpy(p_stream, p_content->p_stream + sizeof(MAGIC_BYTES), data_size);
+    memcpy(p_stream, (p_content->p_stream + magic_size), data_size);
     free(p_content->p_stream);
     p_content->p_stream     = p_stream;
     p_content->stream_size  = data_size;
