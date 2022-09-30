@@ -68,6 +68,21 @@ def _do_lmkdir(args: ClientAction) -> None:
         print(f"[!] {error}")
 
 
+def _do_ldelete(args: ClientAction) -> None:
+    try:
+        if args.src.is_file():
+            args.src.unlink()
+            print("[!] Deleted file")
+        else:
+            args.src.rmdir()
+            print("[!] Deleted directory")
+
+    except FileNotFoundError:
+        print("[!] File not found")
+    except Exception as error:
+        print(f"[!] {error}")
+
+
 def main() -> None:
     args = None
     try:
@@ -75,12 +90,14 @@ def main() -> None:
     except Exception as error:
         exit(error)
 
-    print(args.action)
     if ActionType.L_LS == args.action:
         _do_list_ldir(args)
 
     elif ActionType.L_MKDIR == args.action:
         _do_lmkdir(args)
+
+    elif ActionType.L_DELETE == args.action:
+        _do_ldelete(args)
 
 
 
