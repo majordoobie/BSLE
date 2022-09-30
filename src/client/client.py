@@ -100,6 +100,5 @@ def main() -> None:
         _do_ldelete(args)
 
 
-
 if __name__ == "__main__":
     main()
