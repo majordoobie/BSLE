@@ -5,6 +5,7 @@
 #include <server_ctrl.h>
 
 static const std::filesystem::path test_dir{"/tmp/DBActions"};
+static const std::filesystem::path file1{test_dir/"test_file1.txt"};
 static bool init = true;
 
 /*
@@ -20,12 +21,19 @@ class DBUserActions : public ::testing::Test
     verified_path_t * p_home_dir;
     wire_payload_t * payload1;
     wire_payload_t * payload2;
+    wire_payload_t * payload3;
 
  protected:
     static void SetUpTestSuite()
     {
         std::filesystem::remove_all(test_dir);
         std::filesystem::create_directory(test_dir);
+
+        std::ofstream output(file1);
+        output << "Some data to write\nthe the file";
+        output.close();
+
+
     }
     static void TearDownTestSuite()
     {
@@ -106,12 +114,38 @@ class DBUserActions : public ::testing::Test
         this->payload2->type           = USER_PAYLOAD;
         this->payload2->p_user_payload = usr_payload2;
 
+
+        std_payload_t * usr_payload3 = (std_payload_t *)calloc(1, sizeof(std_payload_t));
+        usr_payload3->p_path = strdup(file1.c_str());
+        usr_payload3->path_len = strlen(file1.c_str());
+
+        std::ifstream infile(file1, std::ios::binary);
+        infile.seekg(0, std::ios::end);
+        size_t pos = (size_t)infile.tellg();
+        infile.seekg(0, std::ios::beg);
+        uint8_t * p_file = (uint8_t *)calloc(pos, sizeof(uint8_t));
+        infile.read((char *)p_file, static_cast<long>(pos));
+        infile.close();
+        usr_payload3->p_byte_stream = p_file;
+        usr_payload3->byte_stream_len = pos;
+
+        this->payload3 = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
+        this->payload3->opt_code       = ACT_LIST_REMOTE_DIRECTORY;
+        this->payload3->username_len   = strlen("VooDooRanger");
+        this->payload3->passwd_len     = strlen("New Belgium");
+        this->payload3->p_username     = strdup("VooDooRanger");
+        this->payload3->p_passwd       = strdup("New Belgium");
+        this->payload3->type           = STD_PAYLOAD;
+        this->payload3->p_std_payload  = usr_payload3;
+
+
     }
     ~DBUserActions()
     {
         db_shutdown(&this->user_db);
         ctrl_destroy(&this->payload1, NULL);
         ctrl_destroy(&this->payload2, NULL);
+        ctrl_destroy(&this->payload3, NULL);
     }
 };
 
@@ -259,6 +293,45 @@ TEST_F(DBUserActions, TestUserAction_DeleteUser)
     ctrl_destroy(NULL, &resp);
 }
 
+TEST_F(DBUserActions, TestUserAction_ListDirectoryErrorNotExist)
+{
+    this->payload3->opt_code = ACT_LIST_REMOTE_DIRECTORY;
+    free(this->payload3->p_std_payload->p_path);
+    this->payload3->p_std_payload->p_path = strdup("NotExist");
+    this->payload3->p_std_payload->path_len = strlen("NotExist");
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_RESOLVE_ERROR);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_ListDirectoryError)
+{
+    this->payload3->opt_code = ACT_LIST_REMOTE_DIRECTORY;
+    free(this->payload3->p_std_payload->p_path);
+    this->payload3->p_std_payload->p_path = strdup(file1.filename().c_str());
+    this->payload3->p_std_payload->path_len = strlen(file1.filename().c_str());
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_PATH_NOT_DIR);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_ListDirectory)
+{
+    this->payload3->opt_code = ACT_LIST_REMOTE_DIRECTORY;
+    free(this->payload3->p_std_payload->p_path);
+    this->payload3->p_std_payload->p_path = strdup("");
+    this->payload3->p_std_payload->path_len = strlen("");
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_SUCCESS);
+    printf("%.*s\n", (int)resp->p_content->stream_size, resp->p_content->p_stream);
+    ctrl_destroy(NULL, &resp);
+}
 
 
 

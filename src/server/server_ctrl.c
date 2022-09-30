@@ -215,6 +215,7 @@ static void do_list_dir(db_t * p_db,
 
     ret_codes_t code = OP_SUCCESS;
     file_content_t * p_content = f_list_dir(p_path, &code);
+    f_destroy_path(&p_path);
     if (NULL == p_content)
     {
         set_resp(pp_resp, code);

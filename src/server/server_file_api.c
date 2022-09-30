@@ -3,6 +3,10 @@
 // Bytes needed to account for the "/" and a "\0"
 #define SLASH_PLUS_NULL 2
 
+// Files to ignore
+extern const char * DB_DIR;
+extern const char * DB_NAME;
+extern const char * DB_HASH;
 
 static uint8_t * realloc_buff(uint8_t * p_buffer,
                               size_t * p_size,
@@ -707,8 +711,13 @@ file_content_t * f_list_dir(verified_path_t * p_path, ret_codes_t * p_code)
                 || (DT_DIR == obj->d_type))
                 && ((0 != strcmp(obj->d_name, ".")
                      && (0 != strcmp(obj->d_name, "..")))
+                     && (0 != strcmp(obj->d_name, DB_DIR))
+                     && (0 != strcmp(obj->d_name, DB_HASH))
+                     && (0 != strcmp(obj->d_name, DB_NAME))
                      ))
         {
+            // Ignore the `.cape` directory
+
             // Get the file size and the length of digits to represent the length
             uint16_t num_length = 0;
             size_t file_size = get_file_size(p_path, obj->d_name, &num_length);

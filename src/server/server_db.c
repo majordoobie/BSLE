@@ -5,9 +5,10 @@
 #define stringify(x) stringify2(x)
 #define stringify2(x) #x
 
-static const char * DB_DIR          = ".cape";
-static const char * DB_NAME         = ".cape/.cape.db";
-static const char * DB_HASH         = ".cape/.cape.hash";
+// The paths are not static since they are used in server_file_api.c
+const char * DB_DIR                 = ".cape";
+const char * DB_NAME                = ".cape/.cape.db";
+const char * DB_HASH                = ".cape/.cape.hash";
 static const char * DEFAULT_USER    = "admin";
 static const char * DEFAULT_HASH    = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
 static const char * DB_FMT          = "%s:%hhd:%s\n";
