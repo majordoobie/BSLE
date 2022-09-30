@@ -166,6 +166,9 @@ db_t * db_init(verified_path_t * p_home_dir)
     {
         goto cleanup_htable;
     }
+
+
+
     *p_db = (db_t){
         .p_home_dir     = p_home_dir,
         .users_htable    = htable

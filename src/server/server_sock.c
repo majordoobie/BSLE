@@ -3,13 +3,21 @@
 
 static volatile atomic_flag server_run;
 
+typedef struct
+{
+    db_t * p_db;
+    uint32_t timeout;
+    int fd;
+} worker_payload_t;
+
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
 DEBUG_STATIC int server_listen(uint32_t port, socklen_t * record_len);
 DEBUG_STATIC void serve_client(void * sock_void);
 static void signal_handler(int signal);
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
+static void destroy_worker_pld(worker_payload_t ** pp_w_pld);
 
-void start_server(uint32_t port_num)
+void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout)
 {
 
     // Make the server start listening
@@ -71,8 +79,8 @@ void start_server(uint32_t port_num)
             {
                 printf("[SERVER] Received connection from unknown peer\n");
             }
-            int * fd = (int *)malloc(sizeof(int));
-            if (UV_INVALID_ALLOC == verify_alloc((fd)))
+            worker_payload_t * w_pld = (worker_payload_t *)malloc(sizeof(worker_payload_t));
+            if (UV_INVALID_ALLOC == verify_alloc(w_pld))
             {
                 debug_print_err("[SERVER] Unable to allocate memory for fd "
                                 "for connection %s:%s\n", host, service);
@@ -80,8 +88,12 @@ void start_server(uint32_t port_num)
             }
             else
             {
-                *fd = client_fd;
-                thpool_enqueue_job(thpool, serve_client, fd);
+                *w_pld = (worker_payload_t){
+                    .timeout    = timeout,
+                    .fd         = client_fd,
+                    .p_db       = p_db,
+                };
+                thpool_enqueue_job(thpool, serve_client, w_pld);
             }
         }
     }
@@ -112,12 +124,11 @@ ret_null:
  */
 DEBUG_STATIC void serve_client(void * sock_void)
 {
-    int client_sock = *(int *)sock_void;
+    worker_payload_t * p_pld = (worker_payload_t *)sock_void;
 
     printf("Thread got work\n");
 
-    close(client_sock);
-    free(sock_void);
+    destroy_worker_pld(&p_pld);
 }
 
 /*!
@@ -250,4 +261,25 @@ static void signal_handler(int signal)
 
     debug_print("%s\n", "[SERVER] Gracefully shutting down...");
     atomic_flag_clear(&server_run);
+}
+
+static void destroy_worker_pld(worker_payload_t ** pp_w_pld)
+{
+    if ((NULL == pp_w_pld) || (NULL == *pp_w_pld))
+    {
+        return;
+    }
+
+
+    worker_payload_t * p_w_pld = *pp_w_pld;
+    close(p_w_pld->fd);
+
+    *p_w_pld = (worker_payload_t){
+        .fd         = 0,
+        .p_db       = NULL,
+        .timeout    = 0
+    };
+    free(p_w_pld);
+    *pp_w_pld = NULL;
+    return;
 }

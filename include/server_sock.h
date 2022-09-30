@@ -1,6 +1,7 @@
 #ifndef BSLE_GALINDEZ_SRC_SERVER_SERVER_SOCK_H_
 #define BSLE_GALINDEZ_SRC_SERVER_SERVER_SOCK_H_
 
+#include "server_db.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -19,7 +20,7 @@ extern "C" {
 #include <server.h>
 
 
-void start_server(uint32_t port_num);
+void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout);
 
 
 #ifdef __cplusplus

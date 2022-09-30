@@ -9,7 +9,7 @@ static void print_usage(void);
  * @brief Free the args object
  * @param pp_args Double pointer to the args object
  */
-void free_args(args_t ** pp_args)
+void args_destroy(args_t ** pp_args)
 {
     if (NULL == pp_args)
     {
@@ -43,7 +43,7 @@ void free_args(args_t ** pp_args)
  * @param argv Array of char arrays
  * @return Pointer to arg_t object if the args were valid otherwise NULL
  */
-args_t * parse_args(int argc, char ** argv)
+args_t * args_parse(int argc, char ** argv)
 {
     // If not arguments are provided return NULL
     if (1 == argc)
@@ -153,7 +153,7 @@ args_t * parse_args(int argc, char ** argv)
 duplicate_args:
     fprintf(stderr, "[!] Duplicate arguments provided\n");
 cleanup:
-    free_args(&p_args);
+    args_destroy(& p_args);
     return NULL;
 }
 static void print_usage(void)

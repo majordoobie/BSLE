@@ -4,5 +4,5 @@
 
 TEST(TestServerCTRL, TestDIR)
 {
-    start_server(8888);
+    start_server(0, 8888, nullptr);
 }

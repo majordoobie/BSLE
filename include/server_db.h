@@ -15,6 +15,11 @@ extern "C" {
 #include <server_crypto.h>
 #include <hashtable.h>
 
+//typedef struct
+//{
+//    uint32_t session_id;
+//} session_t;
+
 typedef struct
 {
     htable_t *          users_htable;
