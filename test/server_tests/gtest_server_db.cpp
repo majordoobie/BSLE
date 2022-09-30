@@ -428,8 +428,51 @@ TEST_F(DBUserActions, TestUserAction_PutFile)
     ctrl_destroy(NULL, &resp);
 }
 
+TEST_F(DBUserActions, TestUserAction_MakeDirPermError)
+{
+    this->payload3->opt_code = ACT_MAKE_REMOTE_DIRECTORY;
 
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
+    ctrl_destroy(NULL, &resp);
+}
 
+TEST_F(DBUserActions, TestUserAction_MakeDirFileExits)
+{
+    this->payload4->opt_code = ACT_MAKE_REMOTE_DIRECTORY;
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_DIR_EXISTS);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_MakeDirErrorResolve)
+{
+    this->payload4->opt_code = ACT_MAKE_REMOTE_DIRECTORY;
+    free(this->payload4->p_std_payload->p_path);
+    this->payload4->p_std_payload->p_path = strdup("dir_not_exist/new_dir");
+    this->payload4->p_std_payload->path_len = strlen("dir_not_exist/new_dir");
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_RESOLVE_ERROR);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_MakeDir)
+{
+    this->payload4->opt_code = ACT_MAKE_REMOTE_DIRECTORY;
+    free(this->payload4->p_std_payload->p_path);
+    this->payload4->p_std_payload->p_path = strdup("new_dir");
+    this->payload4->p_std_payload->path_len = strlen("new_dir");
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_SUCCESS);
+    ctrl_destroy(NULL, &resp);
+}
 
 
 

@@ -30,6 +30,7 @@ typedef enum
     OP_RESOLVE_ERROR       = 9,
     OP_PATH_NOT_DIR        = 10,
     OP_PATH_NOT_FILE       = 11,
+    OP_DIR_EXISTS          = 12,
     OP_IO_ERROR            = 254,
     OP_FAILURE             = 255
 } ret_codes_t;

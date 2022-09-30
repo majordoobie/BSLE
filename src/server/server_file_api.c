@@ -354,6 +354,10 @@ ret_codes_t f_create_dir(verified_path_t * p_path)
     int result = mkdir(p_path->p_path, 0777);
     if (-1 == result)
     {
+        if (EEXIST == errno)
+        {
+            return OP_DIR_EXISTS;
+        }
         perror("mkdir");
         goto ret_null;
     }

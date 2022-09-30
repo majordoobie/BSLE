@@ -11,6 +11,7 @@ static const char * OP_8 = "Directory is not empty, cannot remove";
 static const char * OP_9 = "Path could not be resolved. This could be because it does not exist, or the path does not resolve within the home directory of the server";
 static const char * OP_10 = "Path provided is not of type directory.";
 static const char * OP_11 = "Path provided is not of type regular file.";
+static const char * OP_12 = "Directory could not be created because it already exists";
 static const char * OP_254 = "I/O error occurred during the action. This could be due to permissions, file not existing, or error while writing and reading.";
 static const char * OP_255 = "Server action failed";
 
@@ -451,6 +452,8 @@ static const char * get_err_msg(ret_codes_t res)
             return OP_10;
         case OP_PATH_NOT_FILE:
             return OP_11;
+        case OP_DIR_EXISTS:
+            return OP_12;
         case OP_IO_ERROR:
             return OP_254;
         default:
