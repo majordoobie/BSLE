@@ -19,6 +19,7 @@ class DBUserActions : public ::testing::Test
     db_t * user_db;
     verified_path_t * p_home_dir;
     wire_payload_t * payload1;
+    wire_payload_t * payload2;
 
  protected:
     static void SetUpTestSuite()
@@ -61,7 +62,7 @@ class DBUserActions : public ::testing::Test
             db_create_user(
                 this->user_db,
                 "Fat Tire",
-                "New Belgium CO Denver", READ_WRITE);
+                "New Belgium CO Denver", ADMIN);
 
             db_create_user(
                 this->user_db,
@@ -70,13 +71,13 @@ class DBUserActions : public ::testing::Test
         }
         this->user_db->_debug = true;
 
-        user_payload_t * usr_payload = (user_payload_t *)calloc(1, sizeof(user_payload_t));
-        usr_payload->user_flag      = USR_ACT_CREATE_USER;
-        usr_payload->user_perm      = READ;
-        usr_payload->username_len   = strlen("VooDooRanger");
-        usr_payload->p_username     = strdup("VooDooRanger");
-        usr_payload->passwd_len     = strlen("New Belgium");
-        usr_payload->p_passwd       = strdup("New Belgium");
+        user_payload_t * usr_payload1 = (user_payload_t *)calloc(1, sizeof(user_payload_t));
+        usr_payload1->user_flag      = USR_ACT_CREATE_USER;
+        usr_payload1->user_perm      = READ;
+        usr_payload1->username_len   = strlen("VooDooRanger2");
+        usr_payload1->p_username     = strdup("VooDooRanger2");
+        usr_payload1->passwd_len     = strlen("New Belgium");
+        usr_payload1->p_passwd       = strdup("New Belgium");
 
         this->payload1 = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
         this->payload1->opt_code       = ACT_USER_OPERATION;
@@ -85,13 +86,32 @@ class DBUserActions : public ::testing::Test
         this->payload1->p_username     = strdup("VooDooRanger");
         this->payload1->p_passwd       = strdup("New Belgium");
         this->payload1->type           = USER_PAYLOAD;
-        this->payload1->p_user_payload = usr_payload;
+        this->payload1->p_user_payload = usr_payload1;
+
+
+        user_payload_t * usr_payload2 = (user_payload_t *)calloc(1, sizeof(user_payload_t));
+        usr_payload2->user_flag      = USR_ACT_CREATE_USER;
+        usr_payload2->user_perm      = READ;
+        usr_payload2->username_len   = strlen("VooDooRanger");
+        usr_payload2->p_username     = strdup("VooDooRanger");
+        usr_payload2->passwd_len     = strlen("New Belgium");
+        usr_payload2->p_passwd       = strdup("New Belgium");
+
+        this->payload2 = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
+        this->payload2->opt_code       = ACT_USER_OPERATION;
+        this->payload2->username_len   = strlen("Fat Tire");
+        this->payload2->passwd_len     = strlen("New Belgium CO Denver");
+        this->payload2->p_username     = strdup("Fat Tire");
+        this->payload2->p_passwd       = strdup("New Belgium CO Denver");
+        this->payload2->type           = USER_PAYLOAD;
+        this->payload2->p_user_payload = usr_payload2;
 
     }
     ~DBUserActions()
     {
         db_shutdown(&this->user_db);
         ctrl_destroy(&this->payload1, NULL);
+        ctrl_destroy(&this->payload2, NULL);
     }
 };
 
@@ -183,9 +203,53 @@ TEST_F(DBUserActions, TestUserAction_BadAuth)
     act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_USER_AUTH);
-    printf("%s\n", resp->msg);
     ctrl_destroy(NULL, &resp);
 }
+
+TEST_F(DBUserActions, TestUserAction_CreateUserBadPerm)
+{
+    this->payload1->p_user_payload->user_perm = READ_WRITE;
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_CreateUserExists)
+{
+    free(this->payload1->p_user_payload->p_username);
+    this->payload1->p_user_payload->p_username = strdup(this->payload1->p_username);
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_USER_EXISTS);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_DeleteUserNoPerm)
+{
+    this->payload1->p_user_payload->user_flag = USR_ACT_DELETE_USER;
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_DeleteUserNotExist)
+{
+    this->payload2->p_user_payload->user_flag = USR_ACT_DELETE_USER;
+    free(this->payload2->p_user_payload->p_username);
+    this->payload2->p_user_payload->p_username = strdup("UserNotExist");
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload2);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_USER_EXISTS);
+    ctrl_destroy(NULL, &resp);
+}
+
+
 
 
 

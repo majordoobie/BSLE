@@ -91,7 +91,7 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                 case USR_ACT_DELETE_USER:
                 {
                     // Removal of users can only be performed by admins
-                    if (ADMIN != p_ld->p_user_payload->user_perm)
+                    if (ADMIN != p_user->permission)
                     {
                         set_resp(&p_resp, OP_PERMISSION_ERROR);
                         goto ret_resp;
