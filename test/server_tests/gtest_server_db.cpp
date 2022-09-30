@@ -6,6 +6,9 @@
 
 static const std::filesystem::path test_dir{"/tmp/DBActions"};
 static const std::filesystem::path file1{test_dir/"test_file1.txt"};
+static const std::filesystem::path dir1{test_dir/"test_dir"};
+static const std::filesystem::path dir2{test_dir/"test_dir2"};
+static const std::filesystem::path file2{dir2/"test_file2.txt"};
 static bool init = true;
 
 /*
@@ -29,11 +32,16 @@ class DBUserActions : public ::testing::Test
     {
         std::filesystem::remove_all(test_dir);
         std::filesystem::create_directory(test_dir);
+        std::filesystem::create_directory(dir1);
+        std::filesystem::create_directory(dir2);
 
         std::ofstream output(file1);
         output << "Some data to write\nthe the file";
         output.close();
 
+        std::ofstream output2(file2);
+        output << "SOME DATA";
+        output.close();
 
     }
     static void TearDownTestSuite()
@@ -474,6 +482,41 @@ TEST_F(DBUserActions, TestUserAction_MakeDir)
     ctrl_destroy(NULL, &resp);
 }
 
+TEST_F(DBUserActions, TestUserAction_DelDirPermError)
+{
+    this->payload3->opt_code = ACT_DELETE_REMOTE_FILE;
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_DelDir)
+{
+    this->payload4->opt_code = ACT_DELETE_REMOTE_FILE;
+    free(this->payload4->p_std_payload->p_path);
+    this->payload4->p_std_payload->p_path = strdup(dir1.filename().c_str());
+    this->payload4->p_std_payload->path_len = strlen(dir1.filename().c_str());
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_SUCCESS);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_DelDirErrorNotEmpty)
+{
+    this->payload4->opt_code = ACT_DELETE_REMOTE_FILE;
+    free(this->payload4->p_std_payload->p_path);
+    this->payload4->p_std_payload->p_path = strdup(dir2.filename().c_str());
+    this->payload4->p_std_payload->path_len = strlen(dir2.filename().c_str());
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_DIR_NOT_EMPTY);
+    ctrl_destroy(NULL, &resp);
+}
 
 
 
