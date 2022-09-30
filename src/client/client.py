@@ -55,6 +55,19 @@ def _parse_dir(array: str) -> None:
         print(f"{i.f_type} {i.f_size:>4} {i.f_name}")
 
 
+def _do_lmkdir(args: ClientAction) -> None:
+    try:
+        args.src.mkdir()
+        print("[+] Create directory")
+    except FileNotFoundError:
+        print("[!] Path is missing parent directories. Make those directories "
+              "first")
+    except FileExistsError:
+        print("[!] The directory you are attempting to create already exists")
+    except Exception as error:
+        print(f"[!] {error}")
+
+
 def main() -> None:
     args = None
     try:
@@ -62,8 +75,13 @@ def main() -> None:
     except Exception as error:
         exit(error)
 
+    print(args.action)
     if ActionType.L_LS == args.action:
         _do_list_ldir(args)
+
+    elif ActionType.L_MKDIR == args.action:
+        _do_lmkdir(args)
+
 
 
 if __name__ == "__main__":

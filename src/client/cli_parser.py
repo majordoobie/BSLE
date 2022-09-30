@@ -7,6 +7,19 @@ from typing import Optional
 
 
 class ActionType(Enum):
+    SHELL = auto()
+    DELETE_USER = auto()
+    L_LS = auto()
+    L_DELETE = auto()
+    L_MKDIR = auto()
+    LS = auto()
+    MKDIR = auto()
+    DELETE = auto()
+    PUT = auto()
+    CREATE_USER = auto()
+
+
+class DependencyAction(Enum):
     """
     The action type Enums have a value that specifies the dependency of that
     action.
@@ -104,22 +117,28 @@ class ClientAction:
             if name == action.upper():
                 self.action: ActionType = member
 
-        if self.action.value == 1:
+        dep_value = 0
+        for name, member in DependencyAction.__members__.items():
+            if name == self.action.name:
+                dep_value = member.value
+                break
+
+        if dep_value == 1:
             if self.src is None:
                 raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
                                  f" requires \"--src\" argument")
 
-        elif self.action.value == 2:
+        elif dep_value == 2:
             if self.dst is None:
                 raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
                                  f" requires \"--dst\" argument")
 
-        elif self.action.value == 3:
+        elif dep_value == 3:
             if self.dst is None or self.src is None:
                 raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
                                  f" requires \"--src\" and \"--dst\" argument")
 
-        elif self.action.value == 4:
+        elif dep_value == 4:
             if self.perm is None:
                 raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
                                  f" requires \"--perm\" argument")
