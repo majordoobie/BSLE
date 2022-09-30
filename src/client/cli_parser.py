@@ -142,9 +142,7 @@ def _local_path(path: str) -> Path:
     path = Path(path)
 
     if path.exists():
-        if path.is_file():
-            return path
-        raise argparse.ArgumentTypeError(f"f[!] File \"{path}\" is not a file")
+        return path
     raise argparse.ArgumentTypeError(f"[!] File \"{path}\" does not exist")
 
 

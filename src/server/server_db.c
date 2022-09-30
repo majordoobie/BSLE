@@ -671,6 +671,12 @@ static bool get_stored_hash(file_content_t * p_content)
     {
         goto ret_null;
     }
+
+    if (!verify_magic(p_content))
+    {
+        goto ret_null;
+    }
+
     // Ensure that the data read has the same amount of bytes as the digest
     // and magic bytes
     if (p_content->stream_size != (SHA256_DIGEST_LENGTH + sizeof(MAGIC_BYTES)))
