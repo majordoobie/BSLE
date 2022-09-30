@@ -67,12 +67,6 @@ class DBUserActions : public ::testing::Test
                 this->user_db,
                 "Juicy Haze",
                 "NB North Carolina", READ_WRITE);
-//
-//            db_create_user(
-//                this->user_db,
-//                "Voodoo Vice",
-//                "NB IPA",
-//                READ_WRITE);
         }
         this->user_db->_debug = true;
 
@@ -181,16 +175,17 @@ TEST_F(DBUserActions, UserDeletion)
     EXPECT_EQ(res, OP_USER_EXISTS);
 }
 
-//TEST_F(DBUserActions, TestUserAction_BadAuth)
-//{
-//    this->payload1->p_passwd = (char *)std::string("Wrong Password").c_str();
-//
-//    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1);
-//    ASSERT_NE(resp, nullptr);
-//    EXPECT_EQ(resp->result, OP_USER_AUTH);
-//    printf("%s\n", resp->msg);
-//    ctrl_destroy(NULL, &resp);
-//}
+TEST_F(DBUserActions, TestUserAction_BadAuth)
+{
+    free(this->payload1->p_passwd);
+    this->payload1->p_passwd = strdup("Wrong Password");
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_USER_AUTH);
+    printf("%s\n", resp->msg);
+    ctrl_destroy(NULL, &resp);
+}
 
 
 
