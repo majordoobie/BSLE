@@ -7,6 +7,19 @@ from typing import Optional
 
 
 class ActionType(Enum):
+    SHELL = auto()
+    DELETE_USER = auto()
+    L_LS = auto()
+    L_DELETE = auto()
+    L_MKDIR = auto()
+    LS = auto()
+    MKDIR = auto()
+    DELETE = auto()
+    PUT = auto()
+    CREATE_USER = auto()
+
+
+class DependencyAction(Enum):
     """
     The action type Enums have a value that specifies the dependency of that
     action.
@@ -104,48 +117,31 @@ class ClientAction:
             if name == action.upper():
                 self.action: ActionType = member
 
-        if self.action.value == 1:
+        dep_value = 0
+        for name, member in DependencyAction.__members__.items():
+            if name == self.action.name:
+                dep_value = member.value
+                break
+
+        if dep_value == 1:
             if self.src is None:
                 raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
                                  f" requires \"--src\" argument")
 
-        elif self.action.value == 2:
+        elif dep_value == 2:
             if self.dst is None:
                 raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
                                  f" requires \"--dst\" argument")
 
-        elif self.action.value == 3:
+        elif dep_value == 3:
             if self.dst is None or self.src is None:
                 raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
                                  f" requires \"--src\" and \"--dst\" argument")
 
-        elif self.action.value == 4:
+        elif dep_value == 4:
             if self.perm is None:
                 raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
                                  f" requires \"--perm\" argument")
-
-
-def _local_path(path: str) -> Path:
-    """
-    argparser callback for checking if the path provided exists
-
-    Args:
-        path (str): Path string
-
-    Returns:
-        pathlib.Path: Return path if file exists
-
-    Raises:
-        argparse.ArgumentTypeError: Raise type error if the path provided does
-            not resolve to a file path
-    """
-    path = Path(path)
-
-    if path.exists():
-        if path.is_file():
-            return path
-        raise argparse.ArgumentTypeError(f"f[!] File \"{path}\" is not a file")
-    raise argparse.ArgumentTypeError(f"[!] File \"{path}\" does not exist")
 
 
 def get_args() -> ClientAction:
@@ -179,7 +175,7 @@ def get_args() -> ClientAction:
 
     # The --src and --dst are required arguments base on the action executed
     parser.add_argument(
-        "--src", dest="src", type=_local_path, metavar="[SRC]",
+        "--src", dest="src", type=Path, metavar="[SRC]",
         help="Source file to reference"
     )
     parser.add_argument(
@@ -228,11 +224,11 @@ def get_args() -> ClientAction:
         "--l_ls", dest="l_ls", action="store_true",
         help="List contents of client directory."
     )
-    # local_commands.add_argument(
-    #     "--l_delete", dest="l_delete", action="store_true",
-    #     help="Delete file at client directory. Can only be invoked by users "
-    #          "with at least CREATE_RW permissions"
-    # )
+    local_commands.add_argument(
+        "--l_delete", dest="l_delete", action="store_true",
+        help="Delete file at client directory. Can only be invoked by users "
+             "with at least CREATE_RW permissions"
+    )
     local_commands.add_argument(
         "--l_mkdir", dest="l_mkdir", action="store_true",
         help="Create directory at client directory. Can only be invoked with "

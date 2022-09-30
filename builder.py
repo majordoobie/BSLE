@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Union, List
 
 TEST_BIN_PATH = "test_bin"
+PROJ_BIN = "gtest_server"
 
 
 def main() -> None:
@@ -23,15 +24,10 @@ def main() -> None:
 
     if args.run_all:
         _build(args)
-        subprocess.run(f"ctest -j {cpu_count()} --test-dir build -E '^DBUserActions'", shell=True)
-        subprocess.run(f"ctest -j 1 --test-dir build -R '^DBUserActions'", shell=True)
-        tmp = Path("/tmp")
-        shutil.rmtree(tmp/"dir", ignore_errors=True)
-        shutil.rmtree(tmp/"DBActions", ignore_errors=True)
-        print("\n\n[!] Please note that two calls to `ctest` were made. The "
-              "tests that were able to run in parallel ran first, the "
-              "second test are the tests that needed to be ran in a single "
-              "thread.")
+        for binary in test_binaries:
+            if binary.name == PROJ_BIN:
+                subprocess.run(binary.as_posix())
+                exit()
 
     elif args.type:
         _build(args)
