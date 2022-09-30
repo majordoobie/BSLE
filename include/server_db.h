@@ -22,6 +22,13 @@ typedef struct
     bool                _debug;   // Used to assist in unit testing do not use
 } db_t;
 
+typedef struct
+{
+    const char *        msg;
+    ret_codes_t         result;
+    file_content_t *    p_content;
+} act_resp_t;
+
 /*!
  * @brief This beefy function aggregates several internal API calls into one
  * "null checking" function to ensure that all APIs operated successfully.
@@ -40,6 +47,8 @@ db_t * db_init(verified_path_t * p_home_dir);
  * @param pp_db Double pointer to the hashtable user database object
  */
 void db_shutdown(db_t ** pp_db);
+
+void destroy_resp(act_resp_t ** pp_resp);
 
 /*!
  * @brief Remove the user from the database if they exist.

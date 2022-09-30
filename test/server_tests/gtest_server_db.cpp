@@ -4,9 +4,8 @@
 #include <fstream>
 #include <server_ctrl.h>
 
-// Variables are used to synchronize the threads in ctest -j $(nproc)
-static std::atomic_uint clear = 0;
-static unsigned int tests = 6;
+static const std::filesystem::path test_dir{"/tmp/DBActions"};
+static bool init = true;
 
 /*
  * These unit tests are so hard to synchronize with ctest -j since they
@@ -15,27 +14,40 @@ static unsigned int tests = 6;
  */
 class DBUserActions : public ::testing::Test
 {
+
  public:
     db_t * user_db;
     verified_path_t * p_home_dir;
-    const std::filesystem::path test_dir{"/tmp/DBActions"};
+    wire_payload_t * payload1;
+
  protected:
-    void SetUp() override
+    static void SetUpTestSuite()
     {
-        bool init = false;
-        if (!std::filesystem::exists(test_dir))
-        {
-            std::filesystem::create_directory(test_dir);
-            init = true;
-        }
+        std::filesystem::remove_all(test_dir);
+        std::filesystem::create_directory(test_dir);
+    }
+    static void TearDownTestSuite()
+    {
+        std::filesystem::remove_all(test_dir);
+    }
+
+    DBUserActions()
+    {
         // **NOTE** this value is not freed. It is a bit awkward here but the
         // server_args api will already create the verified_path_t in order
         // to verify that the path is valid
-        this->p_home_dir = f_set_home_dir(test_dir.c_str(), test_dir.string().size());
+        p_home_dir = f_set_home_dir(test_dir.c_str(), test_dir.string().size());
         this->user_db = db_init(this->p_home_dir);
+        if (NULL == this->user_db)
+        {
+            f_destroy_path(&p_home_dir);
+            fprintf(stderr, "[!] Could not init\n");
+            return;
+        }
 
         if (init)
         {
+            init = false;
             db_create_user(
                 this->user_db,
                 "VooDooRanger",
@@ -55,26 +67,37 @@ class DBUserActions : public ::testing::Test
                 this->user_db,
                 "Juicy Haze",
                 "NB North Carolina", READ_WRITE);
+//
+//            db_create_user(
+//                this->user_db,
+//                "Voodoo Vice",
+//                "NB IPA",
+//                READ_WRITE);
         }
-
         this->user_db->_debug = true;
 
-    }
+        user_payload_t * usr_payload = (user_payload_t *)calloc(1, sizeof(user_payload_t));
+        usr_payload->user_flag      = USR_ACT_CREATE_USER;
+        usr_payload->user_perm      = READ;
+        usr_payload->username_len   = strlen("VooDooRanger");
+        usr_payload->p_username     = strdup("VooDooRanger");
+        usr_payload->passwd_len     = strlen("New Belgium");
+        usr_payload->p_passwd       = strdup("New Belgium");
 
-    void TearDown() override
+        this->payload1 = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
+        this->payload1->opt_code       = ACT_USER_OPERATION;
+        this->payload1->username_len   = strlen("VooDooRanger");
+        this->payload1->passwd_len     = strlen("New Belgium");
+        this->payload1->p_username     = strdup("VooDooRanger");
+        this->payload1->p_passwd       = strdup("New Belgium");
+        this->payload1->type           = USER_PAYLOAD;
+        this->payload1->p_user_payload = usr_payload;
+
+    }
+    ~DBUserActions()
     {
         db_shutdown(&this->user_db);
-
-        // Atomic function to clear the test directory. This is used to
-        // synchronize the threads for ctest -j $(nrpoc)
-        // note that we are evaluating tests - 1 because fetch_add returns the
-        // previous value before it was incremented
-        long long int val = clear.fetch_add(1);
-        if (val >= (tests - 1))
-        {
-            fprintf(stderr, "[!] Cleaning up");
-            remove_all(this->test_dir);
-        }
+        ctrl_destroy(&this->payload1, NULL);
     }
 };
 
@@ -158,14 +181,16 @@ TEST_F(DBUserActions, UserDeletion)
     EXPECT_EQ(res, OP_USER_EXISTS);
 }
 
-TEST_F(DBUserActions, TestUserAction_BadAuth)
-{
-    act_resp_t * resp = ctrl_parse_action(this->user_db, 0);
-    ASSERT_NE(resp, nullptr);
-    EXPECT_EQ(resp->result, OP_USER_AUTH);
-    printf("%s\n", resp->msg);
-    ctrl_destroy(NULL, &resp);
-}
+//TEST_F(DBUserActions, TestUserAction_BadAuth)
+//{
+//    this->payload1->p_passwd = (char *)std::string("Wrong Password").c_str();
+//
+//    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1);
+//    ASSERT_NE(resp, nullptr);
+//    EXPECT_EQ(resp->result, OP_USER_AUTH);
+//    printf("%s\n", resp->msg);
+//    ctrl_destroy(NULL, &resp);
+//}
 
 
 

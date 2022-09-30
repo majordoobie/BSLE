@@ -9,12 +9,6 @@ extern "C" {
 
 #include <server_db.h>
 
-typedef struct
-{
-    const char *        msg;
-    ret_codes_t         result;
-    file_content_t *    p_content;
-} act_resp_t
 
 typedef enum
 {

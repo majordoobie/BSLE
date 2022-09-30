@@ -335,24 +335,10 @@ static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld)
  */
 void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
 {
-    if ((NULL == pp_res) || (NULL == *pp_res))
+    if (NULL != pp_res)
     {
-        return;
+        destroy_resp(pp_res);
     }
-    act_resp_t * p_res = *pp_res;
-    if (NULL != p_res->p_content)
-    {
-        f_destroy_content(&p_res->p_content);
-    }
-
-    // Destroy the act_resp_t
-    *p_res = (act_resp_t){
-        .msg        = NULL,
-        .p_content  = NULL,
-        .result     = 0
-    };
-    free(p_res);
-    *pp_res = NULL;
 
     if ((NULL == pp_payload) || (NULL == *pp_payload))
     {
@@ -366,8 +352,14 @@ void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
     if (STD_PAYLOAD == p_payload->type)
     {
         std_payload_t * p_ld = p_payload->p_std_payload;
-        free(p_ld->p_path);
-        free(p_ld->p_byte_stream);
+        if (NULL != p_ld->p_path)
+        {
+            free(p_ld->p_path);
+        }
+        if (NULL != p_ld->p_byte_stream)
+        {
+            free(p_ld->p_byte_stream);
+        }
         *p_ld = (std_payload_t){
             .byte_stream_len = 0,
             .p_byte_stream   = NULL,
@@ -380,8 +372,14 @@ void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
     else
     {
         user_payload_t * p_ld = p_payload->p_user_payload;
-        free(p_ld->p_username);
-        free(p_ld->p_passwd);
+        if (NULL != p_ld->p_username)
+        {
+            free(p_ld->p_username);
+        }
+        if (NULL != p_ld->p_passwd)
+        {
+            free(p_ld->p_passwd);
+        }
         *p_ld = (user_payload_t){
             .user_flag      = 0,
             .user_perm      = 0,
