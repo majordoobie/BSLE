@@ -19,7 +19,7 @@ extern "C" {
 
 #include <utils.h>
 #include <server_crypto.h>
-#include "server.h"
+#include <server.h>
 
 typedef struct verified_path verified_path_t;
 
@@ -148,7 +148,7 @@ void f_destroy_content(file_content_t ** pp_content);
  * @param p_path Pointer to a verified_path_t object
  * @return file_content_t object if successful, otherwise NULL
  */
-file_content_t * f_read_file(verified_path_t * p_path);
+file_content_t * f_read_file(verified_path_t * p_path, ret_codes_t * p_code);
 
 
 /*!
@@ -159,7 +159,7 @@ file_content_t * f_read_file(verified_path_t * p_path);
  * @param stream_size Number of bytes in the byte stream
  * @return FILE_OP_SUCCESS if operation succeeded, otherwise FILE_OP_FAILURE
  */
-server_error_codes_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stream_size);
+ret_codes_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, size_t stream_size);
 
 /*!
  * @brief Simple wrapper for creating a directory using the verified_path_t
@@ -167,14 +167,14 @@ server_error_codes_t f_write_file(verified_path_t * p_path, uint8_t * p_stream, 
  *
  * Usage:
  *  verified_path_t * p_db_dir = f_ver_valid_resolve(p_home_dir, path);
- *  server_error_codes_t status = f_create_dir(p_db_dir);
+ *  ret_codes_t status = f_create_dir(p_db_dir);
  *
  *
  * @param p_path Pointer to a verified_path_t object
  * @retval OP_SUCCESS When the directory is created
  * @retval OP_FAILURE When there is a creation error
  */
-server_error_codes_t f_create_dir(verified_path_t * p_path);
+ret_codes_t f_create_dir(verified_path_t * p_path);
 
 /*!
  * @brief Delete the file. If the file is of type directory, first check
@@ -186,7 +186,7 @@ server_error_codes_t f_create_dir(verified_path_t * p_path);
  * empty
  * @retval OP_FAILURE Server errors
  */
-server_error_codes_t f_del_file(verified_path_t * p_path);
+ret_codes_t f_del_file(verified_path_t * p_path);
 
 /*!
  * @brief Iterate over all the files in the dir path provided and create
@@ -199,7 +199,7 @@ server_error_codes_t f_del_file(verified_path_t * p_path);
  * @return A file content containing the array of data to return or NULL if
  * a failure occurred
  */
-file_content_t * f_list_dir(verified_path_t * p_path);
+file_content_t * f_list_dir(verified_path_t * p_path, ret_codes_t * p_code);
 
 // HEADER GUARD
 #ifdef __cplusplus

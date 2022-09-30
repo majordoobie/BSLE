@@ -176,7 +176,7 @@ TEST(TestFileApi, InSequence)
 
     // Create the directory
     verified_path_t * p_db_dir = f_valid_resolve(test_dir.c_str(), "dir_one");
-    server_error_codes_t status = f_create_dir(p_db_dir);
+    ret_codes_t status = f_create_dir(p_db_dir);
     EXPECT_EQ(status, OP_SUCCESS);
 
     // Add a file to the directory and try to delete the directory
@@ -187,7 +187,8 @@ TEST(TestFileApi, InSequence)
     status = f_del_file(p_db_dir);
     EXPECT_EQ(status, OP_DIR_NOT_EMPTY);
 
-    file_content_t * p_fc = f_list_dir(p_db_dir);
+    ret_codes_t code;
+    file_content_t * p_fc = f_list_dir(p_db_dir, &code);
     printf("%.*s", (int)p_fc->stream_size, (char *)p_fc->p_stream);
     f_destroy_content(&p_fc);
 
