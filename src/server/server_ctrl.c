@@ -181,6 +181,7 @@ static void do_get_file(db_t * p_db, wire_payload_t * p_ld, act_resp_t ** pp_res
 
     ret_codes_t code = OP_SUCCESS;
     file_content_t * p_content = f_read_file(p_path, &code);
+    f_destroy_path(&p_path);
     if (NULL == p_content)
     {
         set_resp(pp_resp, code);
@@ -244,7 +245,7 @@ static ret_codes_t do_put_file(db_t * p_db, wire_payload_t * p_ld)
         f_destroy_path(&p_path);
         return OP_FILE_EXISTS;
     }
-    p_path = f_ver_path_resolve(p_db->p_home_dir, p_std->p_path);
+    p_path = f_ver_valid_resolve(p_db->p_home_dir, p_std->p_path);
     if (NULL == p_path) // This should not happen but just in case
     {
         return OP_RESOLVE_ERROR;

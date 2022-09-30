@@ -22,6 +22,7 @@ class DBUserActions : public ::testing::Test
     wire_payload_t * payload1;
     wire_payload_t * payload2;
     wire_payload_t * payload3;
+    wire_payload_t * payload4;
 
  protected:
     static void SetUpTestSuite()
@@ -116,8 +117,8 @@ class DBUserActions : public ::testing::Test
 
 
         std_payload_t * usr_payload3 = (std_payload_t *)calloc(1, sizeof(std_payload_t));
-        usr_payload3->p_path = strdup(file1.c_str());
-        usr_payload3->path_len = strlen(file1.c_str());
+        usr_payload3->p_path = strdup(file1.filename().c_str());
+        usr_payload3->path_len = strlen(file1.filename().c_str());
 
         std::ifstream infile(file1, std::ios::binary);
         infile.seekg(0, std::ios::end);
@@ -139,6 +140,29 @@ class DBUserActions : public ::testing::Test
         this->payload3->p_std_payload  = usr_payload3;
 
 
+        std_payload_t * usr_payload4 = (std_payload_t *)calloc(1, sizeof(std_payload_t));
+        usr_payload4->p_path = strdup(file1.filename().c_str());
+        usr_payload4->path_len = strlen(file1.filename().c_str());
+
+        std::ifstream infile2(file1, std::ios::binary);
+        infile2.seekg(0, std::ios::end);
+        size_t pos2 = (size_t)infile2.tellg();
+        infile2.seekg(0, std::ios::beg);
+        uint8_t * p_file2 = (uint8_t *)calloc(pos2, sizeof(uint8_t));
+        infile2.read((char *)p_file2, static_cast<long>(pos2));
+        infile2.close();
+        usr_payload4->p_byte_stream = p_file2;
+        usr_payload4->byte_stream_len = pos2;
+
+        this->payload4 = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
+        this->payload4->opt_code       = ACT_LIST_REMOTE_DIRECTORY;
+        this->payload4->username_len   = strlen("Juicy Haze");
+        this->payload4->passwd_len     = strlen("NB North Carolina");
+        this->payload4->p_username     = strdup("Juicy Haze");
+        this->payload4->p_passwd       = strdup("NB North Carolina");
+        this->payload4->type           = STD_PAYLOAD;
+        this->payload4->p_std_payload  = usr_payload4;
+
     }
     ~DBUserActions()
     {
@@ -146,6 +170,7 @@ class DBUserActions : public ::testing::Test
         ctrl_destroy(&this->payload1, NULL);
         ctrl_destroy(&this->payload2, NULL);
         ctrl_destroy(&this->payload3, NULL);
+        ctrl_destroy(&this->payload4, NULL);
     }
 };
 
@@ -332,6 +357,79 @@ TEST_F(DBUserActions, TestUserAction_ListDirectory)
     printf("%.*s\n", (int)resp->p_content->stream_size, resp->p_content->p_stream);
     ctrl_destroy(NULL, &resp);
 }
+
+TEST_F(DBUserActions, TestUserAction_GetFile)
+{
+    this->payload3->opt_code = ACT_GET_REMOTE_FILE;
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_SUCCESS);
+    printf("%.*s\n", (int)resp->p_content->stream_size, resp->p_content->p_stream);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_GetFileNotFile)
+{
+    this->payload3->opt_code = ACT_GET_REMOTE_FILE;
+    free(this->payload3->p_std_payload->p_path);
+    this->payload3->p_std_payload->p_path = strdup("");
+    this->payload3->p_std_payload->path_len = strlen("");
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_PATH_NOT_FILE);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_GetFileError)
+{
+    this->payload3->opt_code = ACT_GET_REMOTE_FILE;
+    free(this->payload3->p_std_payload->p_path);
+    this->payload3->p_std_payload->p_path = strdup("not_exist");
+    this->payload3->p_std_payload->path_len = strlen("not_exist");
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_RESOLVE_ERROR);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_PutFilePermError)
+{
+    this->payload3->opt_code = ACT_PUT_REMOTE_FILE;
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_PutFileFileExists)
+{
+    this->payload4->opt_code = ACT_PUT_REMOTE_FILE;
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_FILE_EXISTS);
+    ctrl_destroy(NULL, &resp);
+}
+
+TEST_F(DBUserActions, TestUserAction_PutFile)
+{
+    this->payload4->opt_code = ACT_PUT_REMOTE_FILE;
+    free(this->payload4->p_std_payload->p_path);
+    this->payload4->p_std_payload->p_path = strdup("new_file.txt");
+    this->payload4->p_std_payload->path_len = strlen("new_file.txt");
+
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4);
+    ASSERT_NE(resp, nullptr);
+    EXPECT_EQ(resp->result, OP_SUCCESS);
+    ctrl_destroy(NULL, &resp);
+}
+
+
+
 
 
 
