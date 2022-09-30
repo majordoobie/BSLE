@@ -187,7 +187,8 @@ TEST(TestFileApi, InSequence)
     status = f_del_file(p_db_dir);
     EXPECT_EQ(status, OP_DIR_NOT_EMPTY);
 
-    file_content_t * p_fc = f_list_dir(p_db_dir, NULL);
+    ret_codes_t code;
+    file_content_t * p_fc = f_list_dir(p_db_dir, &code);
     printf("%.*s", (int)p_fc->stream_size, (char *)p_fc->p_stream);
     f_destroy_content(&p_fc);
 
