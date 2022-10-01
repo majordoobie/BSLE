@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import socket
 from time import sleep
 
-from cli_parser import get_args, ActionType, ClientAction
+from cli_parser import get_args, ActionType, ClientRequest
 
 
 @dataclass
@@ -25,7 +25,7 @@ class DirList:
             self._size /= 1024.0
 
 
-def _do_list_ldir(args: ClientAction) -> None:
+def _do_list_ldir(args: ClientRequest) -> None:
     contents = ""
     for file in args.src.iterdir():
         # Only ready file and dirs
@@ -58,7 +58,7 @@ def _parse_dir(array: str) -> None:
         print(f"{i.f_type} {i.f_size:>4} {i.f_name}")
 
 
-def _do_lmkdir(args: ClientAction) -> None:
+def _do_lmkdir(args: ClientRequest) -> None:
     try:
         args.src.mkdir()
         print("[+] Create directory")
@@ -71,7 +71,7 @@ def _do_lmkdir(args: ClientAction) -> None:
         print(f"[!] {error}")
 
 
-def _do_ldelete(args: ClientAction) -> None:
+def _do_ldelete(args: ClientRequest) -> None:
     try:
         if args.src.is_file():
             args.src.unlink()
@@ -96,24 +96,16 @@ def _socket_timedout(conn: socket.socket):
 
 
 def main() -> None:
-    # args = None
-    # try:
-    #     args = get_args()
-    # except Exception as error:
-    #     exit(error)
-    #
-    # if ActionType.L_LS == args.action:
-    #     _do_list_ldir(args)
-    #
-    # elif ActionType.L_MKDIR == args.action:
-    #     _do_lmkdir(args)
-    #
-    # elif ActionType.L_DELETE == args.action:
-    #     _do_ldelete(args)
+    args = None
+    try:
+        args = get_args()
+    except Exception as error:
+        exit(error)
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
             payload = struct.pack(">B", 1)
-            conn.connect(("127.0.0.1", 31337))
+            print(args.socket)
+            conn.connect(args.socket)
             sleep(7)
             if _socket_timedout(conn):
                 exit("[!] Session timeout")
@@ -121,6 +113,14 @@ def main() -> None:
             i = conn.send(payload)
             print("got ", i)
 
+    if ActionType.L_LS == args.action:
+        _do_list_ldir(args)
+
+    elif ActionType.L_MKDIR == args.action:
+        _do_lmkdir(args)
+
+    elif ActionType.L_DELETE == args.action:
+        _do_ldelete(args)
 
         # print(f"[Sent to server] Client TCP port: {tcp_port}")
         # print(f"[Sent to server] Client will send: {payload_size} bytes")

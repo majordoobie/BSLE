@@ -60,7 +60,7 @@ class UserPerm(Enum):
             raise ValueError()
 
 
-class ClientAction:
+class ClientRequest:
     def __init__(self, host: str, port: int, username: str, src: Optional[Path],
                  dst: Optional[str], perm: Optional[UserPerm], **kwargs):
         """
@@ -89,6 +89,10 @@ class ClientAction:
 
         self.action: [ActionType] = None
         self._parse_kwargs(kwargs)
+
+    @property
+    def socket(self) -> tuple[str, int]:
+        return self.host, self.port
 
     def _parse_kwargs(self, kwargs) -> None:
         """
@@ -144,12 +148,12 @@ class ClientAction:
                                  f" requires \"--perm\" argument")
 
 
-def get_args() -> ClientAction:
+def get_args() -> ClientRequest:
     """
     Parse CLI arguments and return a ClientAction dataclass
 
     Returns:
-        ClientAction: Return ClientAction object
+        ClientRequest: Return ClientAction object
     """
     parser = argparse.ArgumentParser(
         description="File transfer application uses a CLI or interactive menu "
@@ -161,7 +165,8 @@ def get_args() -> ClientAction:
         help="Specify the address of the server. (Default: %(default)s)"
     )
     parser.add_argument(
-        "-p", "--server-port", dest="port", default=31337, metavar="[PORT]",
+        "-p", "--server-port", dest="port", type=int, default=31337,
+        metavar="[PORT]",
         help="Specify the port to connect to. (Default: %(default)s)"
     )
     parser.add_argument(
@@ -254,6 +259,6 @@ def get_args() -> ClientAction:
     )
 
     try:
-        return ClientAction(**vars(parser.parse_args()))
+        return ClientRequest(**vars(parser.parse_args()))
     except ValueError as error:
         parser.error(str(error))
