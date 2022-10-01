@@ -12,6 +12,7 @@ static const char * OP_9 = "Path could not be resolved. This could be because it
 static const char * OP_10 = "Path provided is not of type directory.";
 static const char * OP_11 = "Path provided is not of type regular file.";
 static const char * OP_12 = "Directory could not be created because it already exists";
+static const char * OP_13 = "Network socket is closed, cannot read or send anymore data";
 static const char * OP_254 = "I/O error occurred during the action. This could be due to permissions, file not existing, or error while writing and reading.";
 static const char * OP_255 = "Server action failed";
 
@@ -26,6 +27,26 @@ static void do_get_file(db_t * p_db, wire_payload_t * p_ld, act_resp_t ** pp_res
 static void do_list_dir(db_t * p_db,
                         wire_payload_t * p_ld,
                         act_resp_t ** pp_resp);
+
+
+static act_resp_t * get_resp(void);
+
+
+act_resp_t * ctrl_populate_resp(ret_codes_t code)
+{
+    act_resp_t * p_resp = get_resp();
+    if (NULL == p_resp)
+    {
+        return NULL;
+    }
+
+    *p_resp = (act_resp_t){
+        .msg    = get_err_msg(code),
+        .result = code
+    };
+
+    return p_resp;
+}
 
 /*!
  * @brief Function handles authenticating the user and calling the correct
@@ -43,16 +64,11 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
         goto ret_null;
     }
 
-    act_resp_t * p_resp = (act_resp_t *)malloc(sizeof(act_resp_t));
-    if (UV_INVALID_ALLOC == verify_alloc(p_resp))
+    act_resp_t * p_resp = get_resp();
+    if (NULL == p_resp)
     {
         goto ret_null;
     }
-    *p_resp = (act_resp_t){
-        .msg        = NULL,
-        .result     = OP_SUCCESS,
-        .p_content  = NULL
-    };
 
     // Authenticate the user
     user_account_t * p_user = NULL;
@@ -373,7 +389,7 @@ void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
         free(p_ld);
         p_payload->p_std_payload = NULL;
     }
-    else
+    else if (USER_PAYLOAD == p_payload->type)
     {
         user_payload_t * p_ld = p_payload->p_user_payload;
         if (NULL != p_ld->p_username)
@@ -388,9 +404,9 @@ void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
             .user_flag      = 0,
             .user_perm      = 0,
             .username_len   = 0,
-            .p_username       = NULL,
+            .p_username     = NULL,
             .passwd_len     = 0,
-            .p_passwd         = NULL
+            .p_passwd       = NULL
         };
         free(p_ld);
         p_payload->p_user_payload = NULL;
@@ -403,14 +419,14 @@ void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
         .username_len   = 0,
         .passwd_len     = 0,
         .session_id     = 0,
-        .p_username       = NULL,
-        .p_passwd         = NULL,
+        .p_username     = NULL,
+        .p_passwd       = NULL,
         .payload_len    = 0,
         .type           = 0,
     };
 
     free(p_payload);
-    p_payload = NULL;
+    p_payload   = NULL;
     *pp_payload = NULL;
 }
 
@@ -455,9 +471,26 @@ static const char * get_err_msg(ret_codes_t res)
             return OP_11;
         case OP_DIR_EXISTS:
             return OP_12;
+        case OP_SOCK_CLOSED:
+            return OP_13;
         case OP_IO_ERROR:
             return OP_254;
         default:
             return OP_255;
     }
+}
+
+static act_resp_t * get_resp(void)
+{
+    act_resp_t * p_resp = (act_resp_t *)malloc(sizeof(act_resp_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_resp))
+    {
+        return NULL;
+    }
+    *p_resp = (act_resp_t){
+        .msg        = NULL,
+        .result     = OP_SUCCESS,
+        .p_content  = NULL
+    };
+    return p_resp;
 }

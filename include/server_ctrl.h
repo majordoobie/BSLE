@@ -12,6 +12,7 @@ extern "C" {
 
 typedef enum
 {
+    NO_PAYLOAD,
     STD_PAYLOAD,
     USER_PAYLOAD
 } payload_type_t;
@@ -65,6 +66,8 @@ typedef struct
 void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res);
 
 act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld);
+
+act_resp_t * ctrl_populate_resp(ret_codes_t code);
 
 // HEADER GUARD
 #ifdef __cplusplus

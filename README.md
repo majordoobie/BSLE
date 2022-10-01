@@ -111,7 +111,7 @@ To indicate that there is a file data stream (Only occurs during REMOTE PUT comm
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |          PATH_LEN             |         **PATH_NAME**         |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                     **FILE DATA STREAM**                      |
+   |                     **FILE_DATA_STREAM**                      |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 ##  Client Request User Payload
@@ -139,6 +139,6 @@ To indicate that there is a password field (Only occurs during user creation)
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |       <- PAYLOAD_LEN          |    MSG_LEN     |   **MSG**    |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                    **FILE DATA STREAM**                       |
+   |                    **FILE_DATA_STREAM**                       |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```

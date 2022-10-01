@@ -7,18 +7,21 @@ typedef struct
 {
     db_t * p_db;
     uint32_t timeout;
+    uint32_t session_id;
     int fd;
 } worker_payload_t;
 
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
-DEBUG_STATIC int server_listen(uint32_t port, socklen_t * record_len);
-DEBUG_STATIC void serve_client(void * sock_void);
+static int server_listen(uint32_t port, socklen_t * record_len);
+static void serve_client(void * sock_void);
 static void signal_handler(int signal);
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
 static void destroy_worker_pld(worker_payload_t ** pp_w_pld);
-static wire_payload_t * read_socket(worker_payload_t * pld);
-static int8_t read_stream(int fd, void * payload, size_t bytes_to_read);
+static wire_payload_t * read_client_req(worker_payload_t * pld);
+static ret_codes_t read_stream(int fd, void * payload, size_t bytes_to_read);
+uint64_t swap_byte_order(uint64_t val);
 
+static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp);
 void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout)
 {
 
@@ -115,61 +118,6 @@ ret_null:
     return;
 }
 
-/*!
- * @brief This function is a thread callback. As soon as the server
- * receives a connection, the server will queue the connection into the
- * threadpool job queue. Once the job is dequeued, the thread will execute
- * this callback function. This is where the individual files are parsed
- * and returned to the client.
- *
- * @param sock_void Void pointer containing the connection file descriptor
- */
-DEBUG_STATIC void serve_client(void * sock_void)
-{
-    worker_payload_t * p_pld = (worker_payload_t *)sock_void;
-    struct timeval tv;
-    tv.tv_usec = 0;
-    tv.tv_sec = p_pld->timeout;
-
-    int str_err = setsockopt(
-        p_pld->fd,
-        SOL_SOCKET,
-        SO_RCVTIMEO,
-        (const char*)&tv,
-        sizeof(tv)
-    );
-    if (-1 == str_err)
-    {
-        fprintf(stderr, "[!] Unable to set client sockets timeout\n");
-        goto ret_null;
-    }
-    // TODO need to read from the socket here
-    wire_payload_t * p_wire = read_socket(p_pld);
-    ctrl_destroy(&p_wire, NULL);
-
-
-
-ret_null:
-    destroy_worker_pld(&p_pld);
-    return;
-}
-
-static wire_payload_t * read_socket(worker_payload_t * pld)
-{
-    wire_payload_t * p_wire = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
-    if (UV_INVALID_ALLOC == verify_alloc(p_wire))
-    {
-        goto ret_null;
-    }
-
-    read_stream(pld->fd, &p_wire->opt_code, H_OPCODE);
-    printf("Got an op code of %d\n", p_wire->opt_code);
-
-
-
-ret_null:
-    return NULL;
-}
 
 /*!
  * @brief Start listening on the port provided on quad 0s. The file descriptor
@@ -324,10 +272,247 @@ static void destroy_worker_pld(worker_payload_t ** pp_w_pld)
     return;
 }
 
-static int8_t read_stream(int fd, void * payload, size_t bytes_to_read)
+/*!
+ * @brief This function is a thread callback. As soon as the server
+ * receives a connection, the server will queue the connection into the
+ * threadpool job queue. Once the job is dequeued, the thread will execute
+ * this callback function. This is where the individual files are parsed
+ * and returned to the client.
+ *
+ * @param sock_void Void pointer containing the connection file descriptor
+ */
+static void serve_client(void * sock_void)
+{
+    worker_payload_t * p_pld = (worker_payload_t *)sock_void;
+    struct timeval tv;
+    tv.tv_usec = 0;
+    tv.tv_sec = p_pld->timeout;
+
+    int str_err = setsockopt(
+        p_pld->fd,
+        SOL_SOCKET,
+        SO_RCVTIMEO,
+        (const char*)&tv,
+        sizeof(tv)
+    );
+    if (-1 == str_err)
+    {
+        fprintf(stderr, "[!] Unable to set client sockets timeout\n");
+        goto ret_null;
+    }
+
+    // If we get a null then we know that some kind of error occurred and
+    // has been handled
+    wire_payload_t * p_wire = read_client_req(p_pld);
+    if (NULL == p_wire)
+    {
+        goto ret_null;
+    }
+
+    ctrl_destroy(&p_wire, NULL);
+
+
+
+ret_null:
+    destroy_worker_pld(&p_pld);
+    return;
+}
+
+static wire_payload_t * read_client_req(worker_payload_t * pld)
+{
+    wire_payload_t * p_wire = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_wire))
+    {
+        goto ret_null;
+    }
+
+    ret_codes_t result = read_stream(pld->fd, &p_wire->opt_code, H_OPCODE);
+    if (OP_SUCCESS != result)
+    {
+        act_resp_t * resp = ctrl_populate_resp(result);
+        if (NULL == resp)
+        {
+            goto cleanup;
+        }
+        debug_print("%s\n", "[WORKER - READ_CLIENT] Failed to read from client,"
+                            " sending a response packet");
+        write_response(pld, resp);
+        goto cleanup;
+    }
+
+    printf("Got an op code of %d\n", p_wire->opt_code);
+
+cleanup:
+    ctrl_destroy(&p_wire, NULL);
+ret_null:
+    return NULL;
+}
+
+static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
+{
+    /*
+     *   0               1               2               3
+     *   0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  | RETURN_CODE   |    RESERVED   |          SESSION_ID->         |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |       <- SESSION_ID           |         PAYLOAD_LEN ->        |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                      <- PAYLOAD_LEN ->                        |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |       <- PAYLOAD_LEN          |    MSG_LEN     |   **MSG**    |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                    **FILE DATA STREAM**                       |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     */
+
+    // Complete size of the whole response packet limited to 2048 bytes
+    size_t pkt_msg_size = H_RETURN_CODE + H_RESERVED +
+                       H_SESSION_ID + H_PAYLOAD_LEN + H_MSG_LEN;
+
+    // msg is guaranteed to be null terminated
+    size_t msg_len = strlen(p_resp->msg);
+    pkt_msg_size += msg_len;
+
+    // The size of the payload portion of the packet see the README.md
+    size_t payload_len = msg_len + H_MSG_LEN;
+
+    // Size of the data stream which is limited to 1016 bytes per packet
+    size_t data_stream_size = 0;
+    if (NULL != p_resp->p_content)
+    {
+        pkt_msg_size    += p_resp->p_content->stream_size;
+        pkt_msg_size    += p_resp->p_content->p_hash->size;
+
+        payload_len      += p_resp->p_content->stream_size;
+        payload_len      += p_resp->p_content->p_hash->size;
+
+        data_stream_size += p_resp->p_content->stream_size;
+        data_stream_size += p_resp->p_content->p_hash->size;
+    }
+
+    uint8_t * p_stream = (uint8_t *)calloc(pkt_msg_size, sizeof(uint8_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_stream))
+    {
+        goto ret_null;
+    }
+
+    size_t offset = 0;
+    memcpy(p_stream, &p_resp->result, H_RETURN_CODE);
+    offset += H_RETURN_CODE;
+
+    uint8_t reserved = 0;
+    memcpy((p_stream + offset), &reserved, H_RESERVED);
+    offset += H_RESERVED;
+
+    uint32_t session_id = htonl(p_ld->session_id);
+    memcpy((p_stream + offset), &session_id, H_SESSION_ID);
+    offset += H_SESSION_ID;
+
+    uint64_t pld_size = swap_byte_order(payload_len);
+    memcpy((p_stream + offset), &pld_size, H_PAYLOAD_LEN);
+    offset += H_PAYLOAD_LEN;
+
+    memcpy((p_stream + offset), &msg_len, H_MSG_LEN);
+    offset += H_MSG_LEN;
+
+    memcpy((p_stream + offset), p_resp->msg, msg_len);
+    offset += msg_len;
+
+    if (NULL != p_resp->p_content)
+    {
+        memcpy((p_stream + offset), p_resp->p_content->p_hash->array, p_resp->p_content->p_hash->size);
+        offset += p_resp->p_content->p_hash->size;
+
+        memcpy((p_stream + offset), p_resp->p_content->p_stream, p_resp->p_content->stream_size);
+    }
+
+    // Data is going to be sent two segments to facilitate the packet size
+    // limit for the message response packet of 2048 and the file data stream
+    // for 1016 bytes per packet. So the first everything but the file data
+    // stream
+    offset                  = 0;
+    ssize_t sent_bytes      = 0; // Number of bytes to send per packet
+    ssize_t total_sent      = 0; // Total number of bytes sent so far
+    size_t total_send_size  = pkt_msg_size - data_stream_size; // total to send
+
+    // If total bytes to send is less than the MAX size to send, then
+    // set to send value to the total_send_size. Otherwise, set it to
+    // the MAX_MSG_SIZE of 2048
+    size_t send_size = (total_send_size < MAX_MSG_SIZE) ? total_send_size
+                                                        : MAX_MSG_SIZE;
+    for (;;)
+    {
+        sent_bytes = write(p_ld->fd, (p_stream + offset), send_size);
+        if (-1 == sent_bytes)
+        {
+            debug_print_err("%s\n", strerror(errno));
+            goto cleanup;
+        }
+
+        total_sent += sent_bytes;
+        if (total_sent == total_send_size)
+        {
+            debug_print("[WORKER - RESP] Responded with %ld bytes\n", total_sent);
+            break;
+        }
+
+        offset += (size_t)sent_bytes;
+        send_size = total_send_size - (size_t)total_sent;
+        send_size = (send_size < MAX_MSG_SIZE) ? send_size : MAX_MSG_SIZE;
+    }
+
+    // If there is a file stream send it while taking into account
+    // the file size limit of 1016 bytes
+    if (data_stream_size > 0)
+    {
+        total_send_size = data_stream_size;
+        send_size = (total_send_size < MAX_FILE_SIZE) ? total_send_size
+                                                      : MAX_FILE_SIZE;
+        for (;;)
+        {
+            sent_bytes = write(p_ld->fd, (p_stream + offset), send_size);
+            if (-1 == sent_bytes)
+            {
+                debug_print_err("%s\n", strerror(errno));
+                goto cleanup;
+            }
+
+            total_sent += sent_bytes;
+            if (total_sent == total_send_size)
+            {
+                debug_print("[WORKER - RESP] Responded with %ld bytes\n", total_sent);
+                break;
+            }
+
+            offset += (size_t)sent_bytes;
+            send_size = total_send_size - (size_t)total_sent;
+            send_size = (send_size < MAX_FILE_SIZE) ? send_size : MAX_FILE_SIZE;
+        }
+    }
+    free(p_stream);
+    return;
+
+cleanup:
+    free(p_stream);
+ret_null:
+    return;
+}
+
+/*!
+ * @brief Function handles reading from the file descriptor and populates the
+ * void pointer supplied with using the bytes_to_read parameter
+ *
+ * @param fd
+ * @param payload
+ * @param bytes_to_read
+ * @return
+ */
+static ret_codes_t read_stream(int fd, void * payload, size_t bytes_to_read)
 {
     ssize_t read_bytes;
     ssize_t total_bytes_read = 0;
+    ret_codes_t res = OP_FAILURE;
 
     // Buffer will be used to read from the file descriptor
     uint8_t * read_buffer = (uint8_t *)calloc(1, bytes_to_read + 1);
@@ -354,9 +539,7 @@ static int8_t read_stream(int fd, void * payload, size_t bytes_to_read)
             if ((EAGAIN == errno) || (EWOULDBLOCK == errno))
             {
                 debug_print("%s\n", "[STREAM READ] Read timed out");
-                uint8_t kill = OP_SESSION_ERROR;
-                write(fd, &kill, 1);
-                goto clean_buffers;
+                res = OP_SESSION_ERROR;
             }
             else
             {
@@ -367,6 +550,7 @@ static int8_t read_stream(int fd, void * payload, size_t bytes_to_read)
         else if (0 == read_bytes)
         {
             debug_print_err("%s\n", "[STREAM READ] Read zero bytes. Client likely closed connection.");
+            res = OP_SOCK_CLOSED;
             goto clean_buffers;
         }
 
@@ -386,12 +570,25 @@ static int8_t read_stream(int fd, void * payload, size_t bytes_to_read)
     // Free the working buffers
     free(read_buffer);
     free(payload_buffer);
-    return 0;
+    return OP_SUCCESS;
 
 clean_buffers:
     free(payload_buffer);
 clean_read_buff:
     free(read_buffer);
 ret_null:
-    return -1;
+    return res;
+}
+
+/*!
+ * @brief Perform a byte order swap of a 64 bit value
+ * @param val Value to swap
+ * @return Swapped value
+ */
+uint64_t swap_byte_order(uint64_t val)
+{
+    val = ((val << 8) & 0xFF00FF00FF00FF00ULL ) | ((val >> 8) & 0x00FF00FF00FF00FFULL );
+    val = ((val << 16) & 0xFFFF0000FFFF0000ULL ) | ((val >> 16) & 0x0000FFFF0000FFFFULL );
+    val = (val << 32) | (val >> 32);
+    return val;
 }
