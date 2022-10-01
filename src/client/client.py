@@ -3,7 +3,8 @@ from dataclasses import dataclass
 import socket
 from time import sleep
 
-from cli_parser import get_args, ActionType, ClientRequest
+from client_request import ClientRequest, ActionType
+import cli_parser
 
 
 @dataclass
@@ -98,7 +99,7 @@ def _socket_timedout(conn: socket.socket):
 def main() -> None:
     args = None
     try:
-        args = get_args()
+        args = cli_parser.get_args()
     except Exception as error:
         exit(error)
 
