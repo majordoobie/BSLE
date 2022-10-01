@@ -19,7 +19,6 @@ static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host,
 static void destroy_worker_pld(worker_payload_t ** pp_w_pld);
 static wire_payload_t * read_client_req(worker_payload_t * pld);
 static ret_codes_t read_stream(int fd, void * payload, size_t bytes_to_read);
-uint64_t swap_byte_order(uint64_t val);
 
 static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp);
 void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout)
@@ -409,7 +408,7 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
     memcpy((p_stream + offset), &session_id, H_SESSION_ID);
     offset += H_SESSION_ID;
 
-    uint64_t pld_size = swap_byte_order(payload_len);
+    uint64_t pld_size = htonll(payload_len);
     memcpy((p_stream + offset), &pld_size, H_PAYLOAD_LEN);
     offset += H_PAYLOAD_LEN;
 
@@ -580,15 +579,4 @@ ret_null:
     return res;
 }
 
-/*!
- * @brief Perform a byte order swap of a 64 bit value
- * @param val Value to swap
- * @return Swapped value
- */
-uint64_t swap_byte_order(uint64_t val)
-{
-    val = ((val << 8) & 0xFF00FF00FF00FF00ULL ) | ((val >> 8) & 0x00FF00FF00FF00FFULL );
-    val = ((val << 16) & 0xFFFF0000FFFF0000ULL ) | ((val >> 16) & 0x0000FFFF0000FFFFULL );
-    val = (val << 32) | (val >> 32);
-    return val;
-}
+

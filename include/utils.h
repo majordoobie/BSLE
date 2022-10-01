@@ -4,9 +4,13 @@
 extern "C" {
 #endif //END __cplusplus
 
-/*
- * Macro creates a variable used to enable or disable print statements
- * depending on if the application was compiled in either debug or released mode
+/*!
+ * DEBUG_PRINT - Used to print debugging statements to stderr only when
+ * the release mode is set to debug
+ *
+ * DEBUG_STATIC - Used to make static functions public when the release
+ * mode is in debug. The purpose is to be able to unit test functions
+ * that are meant to be private.
  */
 #ifdef NDEBUG
 #   define DEBUG_PRINT 0
@@ -18,6 +22,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <errno.h>
+#include <stdint.h>
 
 
 /*
@@ -48,6 +53,24 @@ typedef enum util_verify_t
  * is returned
  */
 util_verify_t verify_alloc(void * p_ptr);
+
+/*!
+ * @brief Function takes a 64bit int and converts it to host order. This is
+ * done by checking the endianness of the machine
+ *
+ * @param val Value to swap to host order
+ * @return Value in big endian
+ */
+
+uint64_t ntohll(uint64_t val);
+/*!
+ * @brief Function takes a 64bit int and converts it to network order. This is
+ * done by checking the endianness of the machine
+ *
+ * @param val Value to swap to network order
+ * @return Value in big endian
+ */
+uint64_t htonll(uint64_t val);
 
 #ifdef __cplusplus
 }
