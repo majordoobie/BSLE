@@ -1,21 +1,29 @@
 from __future__ import annotations
 
-from enum import Enum, auto
+import struct
+from enum import Enum, auto, unique
 from pathlib import Path
 from typing import Optional
 
 
+@unique
 class ActionType(Enum):
+    NO_OP = 0
+    USER_OP = 1
+    DELETE = 2
+    LS = 3
+    GET = 4
+    MKDIR = 5
+    PUT = 6
+    LOCAL_OP = 7
+
+    CREATE_USER = 10
+    DELETE_USER = 20
+
     SHELL = auto()
-    DELETE_USER = auto()
     L_LS = auto()
     L_DELETE = auto()
     L_MKDIR = auto()
-    LS = auto()
-    MKDIR = auto()
-    DELETE = auto()
-    PUT = auto()
-    CREATE_USER = auto()
 
 
 class DependencyAction(Enum):
@@ -37,13 +45,14 @@ class DependencyAction(Enum):
     MKDIR = 2
     DELETE = 2
     PUT = 3
+    GET = 3
     CREATE_USER = 4
 
 
 class UserPerm(Enum):
-    READ = auto()
-    READ_WRITE = auto()
-    ADMIN = auto()
+    READ = 1
+    READ_WRITE = 2
+    ADMIN = 3
 
     def __str__(self):
         """Provides an easier to read output when using -h"""
@@ -65,7 +74,7 @@ class ClientRequest:
                  username: str,
                  src: Optional[Path],
                  dst: Optional[str],
-                 perm: Optional[UserPerm],
+                 perm: Optional[UserPerm] = UserPerm.READ,
                  session_id: Optional[int] = 0,
                  **kwargs) -> None:
         """
@@ -89,11 +98,14 @@ class ClientRequest:
         self.port = port
         self.username = username
         self.src = src
-        self.dst = dst g
+        self.dst = dst
         self.perm = perm
         self.session_id = session_id
 
-        self.action: [ActionType] = None
+        self.action: [ActionType] = ActionType.NO_OP
+        self.user_flag: [ActionType] = ActionType.NO_OP
+        self.local_action: [ActionType] = ActionType.NO_OP
+
         self._parse_kwargs(kwargs)
 
     @property
@@ -102,6 +114,26 @@ class ClientRequest:
 
     @property
     def client_request(self):
+        """
+            0               1               2               3
+            0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |     OPCODE    |    RESERVED   |         USERNAME_LEN          |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |        PASSWORD_LEN           |        SESSION_ID ->          |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |       < - SESSION_ID          |   **USERNAME + PASSWORD**     |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |                          PAYLOAD_LEN ->                       |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |                       <- PAYLOAD_LEN                          |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |                ~FILE PAYLOAD OR USER PAYLOAD~                 |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        :return:
+        """
+        request_header = struct.pack("!BBHHL",
+                                     )
 
 
     def _parse_kwargs(self, kwargs) -> None:
@@ -156,4 +188,17 @@ class ClientRequest:
             if self.perm is None:
                 raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
                                  f" requires \"--perm\" argument")
+
+        # Is command is to either create or delete a user, set the action
+        # flag to USER_OP and set the USER_FLAG to the type of user op
+        if self.action in (ActionType.DELETE_USER, ActionType.CREATE_USER):
+            self.user_flag = self.action
+            self.action = ActionType.USER_OP
+
+        # If command is a local operation, set the action type to the LOCAL_OP
+        # this will instruct the server to only authenticate
+        if self.action in (ActionType.L_LS, ActionType.L_MKDIR, ActionType.L_DELETE):
+            self.user_flag = self.action
+            self.action = ActionType.LOCAL_OP
+
 

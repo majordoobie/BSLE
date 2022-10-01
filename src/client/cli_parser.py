@@ -102,12 +102,12 @@ def get_args() -> ClientRequest:
     # User account commands
     #
     user_account_commands.add_argument(
-        "--create_user", dest="create_user", action="store_true",
+        "--create_user", dest="create_user", type=str, metavar="[USR]",
         help="Create a user with the permissions of user invoking the command."
     )
 
     user_account_commands.add_argument(
-        "--delete_user", dest="delete_user", action="store_true",
+        "--delete_user", dest="delete_user", type=str, metavar="[USR]",
         help="Delete user. Can only be invoked by CREATE_ADMIN."
     )
     user_account_commands.add_argument(

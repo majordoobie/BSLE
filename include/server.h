@@ -72,8 +72,8 @@ typedef enum
 
 typedef enum
 {
-    USR_ACT_CREATE_USER         = 1,
-    USR_ACT_DELETE_USER         = 2
+    USR_ACT_CREATE_USER         = 10,
+    USR_ACT_DELETE_USER         = 20
 } usr_act_t;
 
 

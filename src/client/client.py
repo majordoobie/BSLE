@@ -103,6 +103,9 @@ def main() -> None:
     except Exception as error:
         exit(error)
 
+    print(args.action, "\n", args.user_flag)
+    exit()
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
             payload = struct.pack(">B", 1)
             print(args.socket)
