@@ -91,7 +91,7 @@ $ python3 builder.py -t gtest_server_crypto
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |     OPCODE    |    RESERVED   |         USERNAME_LEN          |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |           PASSWD LEN          |        SESSION_ID ->          |
+   |           PASSWD_LEN          |        SESSION_ID ->          |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |       < - SESSION_ID          |     **USERNAME + PASSWD**     |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -121,9 +121,9 @@ To indicate that there is a password field (Only occurs during user creation)
     0                   1                   2                   3   
     0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |  USR_ACT_FLAG |   PERMISSION  |  USERNAME_LEN | **USERNAME**  |
+   |  USR_ACT_FLAG |   PERMISSION  |          USERNAME_LEN         |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   | PASSWORD_LEN  | **PASSWORD**  |
+   | **USERNAME**  |         PASSWORD_LEN          | **PASSWORD**  |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 ## Server Response
