@@ -37,6 +37,7 @@ typedef enum
     H_USR_PERMISSION    = 1, // Permission of the new user during creation
     H_RETURN_CODE       = 1, // ret_codes_t
     H_MSG_LEN           = 1, // The length of the response message
+    H_HASH_LEN          = SHA256_DIGEST_LENGTH,
 } header_sizes_t;
 
 // Descriptions found in server_ctrl.c (barrc prohibits storage allocation in header)

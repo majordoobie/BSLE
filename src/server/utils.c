@@ -29,14 +29,7 @@ util_verify_t verify_alloc(void * ptr)
  */
 uint64_t htonll(uint64_t val)
 {
-    // source :https://tinyurl.com/bdhe4sy3
-    // little endian if true
-    int n = 1;
-    if(1 == *(char *)&n)
-    {
-        return swap_byte_order(val);
-    }
-    return val;
+    return swap_byte_order(val);
 }
 
 /*!
@@ -48,20 +41,20 @@ uint64_t htonll(uint64_t val)
  */
 uint64_t ntohll(uint64_t val)
 {
+    return swap_byte_order(val);
+}
+
+static uint64_t swap_byte_order(uint64_t val)
+{
     // Source: https://tinyurl.com/bdhe4sy3
     // little endian if true
     int n = 1;
     if(1 == *(char *)&n)
     {
-        return swap_byte_order(val);
+        val = ((val << 8) & 0xFF00FF00FF00FF00ULL ) | ((val >> 8) & 0x00FF00FF00FF00FFULL );
+        val = ((val << 16) & 0xFFFF0000FFFF0000ULL ) | ((val >> 16) & 0x0000FFFF0000FFFFULL );
+        val = (val << 32) | (val >> 32);
+        return val;
     }
-    return val;
-}
-
-static uint64_t swap_byte_order(uint64_t val)
-{
-    val = ((val << 8) & 0xFF00FF00FF00FF00ULL ) | ((val >> 8) & 0x00FF00FF00FF00FFULL );
-    val = ((val << 16) & 0xFFFF0000FFFF0000ULL ) | ((val >> 16) & 0x0000FFFF0000FFFFULL );
-    val = (val << 32) | (val >> 32);
     return val;
 }

@@ -28,7 +28,7 @@ class DirList:
 
 def _do_list_ldir(args: ClientRequest) -> None:
     contents = ""
-    for file in args.src.iterdir():
+    for file in args._src.iterdir():
         # Only ready file and dirs
         if file.is_file() or file.is_dir():
             _type = "[F]" if file.is_file() else "[D]"
@@ -61,7 +61,7 @@ def _parse_dir(array: str) -> None:
 
 def _do_lmkdir(args: ClientRequest) -> None:
     try:
-        args.src.mkdir()
+        args._src.mkdir()
         print("[+] Create directory")
     except FileNotFoundError:
         print("[!] Path is missing parent directories. Make those directories "
@@ -74,11 +74,11 @@ def _do_lmkdir(args: ClientRequest) -> None:
 
 def _do_ldelete(args: ClientRequest) -> None:
     try:
-        if args.src.is_file():
-            args.src.unlink()
+        if args._src.is_file():
+            args._src.unlink()
             print("[!] Deleted file")
         else:
-            args.src.rmdir()
+            args._src.rmdir()
             print("[!] Deleted directory")
 
     except FileNotFoundError:
@@ -103,27 +103,20 @@ def main() -> None:
     except Exception as error:
         exit(error)
 
-    print(args.action, "\n", args.user_flag)
-    exit()
-
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
-            payload = struct.pack(">B", 1)
-            print(args.socket)
             conn.connect(args.socket)
-            sleep(7)
-            if _socket_timedout(conn):
-                exit("[!] Session timeout")
+            conn.send(args.client_request)
 
-            i = conn.send(payload)
-            print("got ", i)
+            v = conn.recv(1024)
+            print(v)
 
-    if ActionType.L_LS == args.action:
+    if ActionType.L_LS == args._action:
         _do_list_ldir(args)
 
-    elif ActionType.L_MKDIR == args.action:
+    elif ActionType.L_MKDIR == args._action:
         _do_lmkdir(args)
 
-    elif ActionType.L_DELETE == args.action:
+    elif ActionType.L_DELETE == args._action:
         _do_ldelete(args)
 
         # print(f"[Sent to server] Client TCP port: {tcp_port}")

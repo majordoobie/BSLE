@@ -11,16 +11,29 @@ typedef struct
     int fd;
 } worker_payload_t;
 
-static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
-static int server_listen(uint32_t port, socklen_t * record_len);
+static int server_listen(uint32_t serv_port, socklen_t * record_len);
 static void serve_client(void * sock_void);
 static void signal_handler(int signal);
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
-static void destroy_worker_pld(worker_payload_t ** pp_w_pld);
-static wire_payload_t * read_client_req(worker_payload_t * pld);
+static void destroy_worker_pld(worker_payload_t ** pp_ld);
+static wire_payload_t * read_client_req(worker_payload_t * p_ld);
 static ret_codes_t read_stream(int fd, void * payload, size_t bytes_to_read);
-
 static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp);
+
+// Readability functions
+static bool std_payload_has_file(uint64_t payload_len, uint16_t path_len);
+static bool user_payload_has_password(uint64_t payload_len, uint16_t password_len);
+static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
+static uint64_t get_file_stream_size(uint64_t payload_len, uint16_t path_len);
+
+static ret_codes_t make_byte_array(worker_payload_t * p_ld,
+                                   uint8_t ** pp_byte_array,
+                                   uint64_t array_len,
+                                   bool make_string);
+static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
+                                            wire_payload_t * p_wire);
+static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
+                                           wire_payload_t * p_wire);
 void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout)
 {
 
@@ -117,21 +130,35 @@ ret_null:
     return;
 }
 
+/*!
+ * @brief Handle the registered signals
+ */
+static void signal_handler(int signal)
+{
+    if (SIGPIPE == signal)
+    {
+        return;
+    }
+
+    debug_print("%s\n", "[SERVER] Gracefully shutting down...");
+    atomic_flag_clear(&server_run);
+}
 
 /*!
- * @brief Start listening on the port provided on quad 0s. The file descriptor
+ * @brief Start listening on the serv_port provided on quad 0s. The file descriptor
  * for the socket is returned
- * @param port Port number to listen on
+ *
+ * @param serv_port Port number to listen on
  * @param record_len Populated with the size of the sockaddr. This value is
  * dependant on the structure used. IPv6 structures are larger.
  * @return Either -1 for failure or 0 for success
  */
-DEBUG_STATIC int server_listen(uint32_t port, socklen_t * record_len)
+static int server_listen(uint32_t serv_port, socklen_t * record_len)
 {
-    // Convert the port number into a string. The port number is already
+    // Convert the serv_port number into a string. The serv_port number is already
     // verified, so we do not need to double-check it here
     char port_string[10];
-    snprintf(port_string, 10, "%d", port);
+    snprintf(port_string, 10, "%d", serv_port);
 
     // Set up the hints structure to specify the parameters we want
     struct addrinfo hints;
@@ -211,14 +238,14 @@ DEBUG_STATIC int server_listen(uint32_t port, socklen_t * record_len)
     }
 
     char host[NI_MAXHOST];
-    char service[NI_MAXSERV];
-    if (0 == get_ip_port(network_record->ai_addr, network_record->ai_addrlen, host, service))
+    char port[NI_MAXSERV];
+    if (0 == get_ip_port(network_record->ai_addr, network_record->ai_addrlen, host, port))
     {
-        debug_print("[SERVER] Listening on %s:%s\n", host, service);
+        debug_print("[SERVER] Listening on %s:%s\n", host, port);
     }
     else
     {
-        debug_print("%s\n", "[SERVER] Unknown ip and port listening on");
+        debug_print("%s\n", "[SERVER] Unknown ip and serv_port listening on");
     }
 
 
@@ -233,43 +260,6 @@ DEBUG_STATIC int server_listen(uint32_t port, socklen_t * record_len)
     return (network_record == NULL) ? -1 : sock_fd;
 }
 
-static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port)
-{
-    return getnameinfo(addr, addr_size, host, NI_MAXHOST, port, NI_MAXSERV, NI_NUMERICSERV);
-
-}
-
-static void signal_handler(int signal)
-{
-    if (SIGPIPE == signal)
-    {
-        return;
-    }
-
-    debug_print("%s\n", "[SERVER] Gracefully shutting down...");
-    atomic_flag_clear(&server_run);
-}
-
-static void destroy_worker_pld(worker_payload_t ** pp_w_pld)
-{
-    if ((NULL == pp_w_pld) || (NULL == *pp_w_pld))
-    {
-        return;
-    }
-
-
-    worker_payload_t * p_w_pld = *pp_w_pld;
-    close(p_w_pld->fd);
-
-    *p_w_pld = (worker_payload_t){
-        .fd         = 0,
-        .p_db       = NULL,
-        .timeout    = 0
-    };
-    free(p_w_pld);
-    *pp_w_pld = NULL;
-    return;
-}
 
 /*!
  * @brief This function is a thread callback. As soon as the server
@@ -278,17 +268,21 @@ static void destroy_worker_pld(worker_payload_t ** pp_w_pld)
  * this callback function. This is where the individual files are parsed
  * and returned to the client.
  *
+ * The function creates a critical object called the worker_payload_t or p_ld
+ * that contains the necessary information to properly perform
+ * server operations (sending/receiving) such as the socket fd itself.
+ *
  * @param sock_void Void pointer containing the connection file descriptor
  */
 static void serve_client(void * sock_void)
 {
-    worker_payload_t * p_pld = (worker_payload_t *)sock_void;
+    worker_payload_t * p_ld = (worker_payload_t *)sock_void;
     struct timeval tv;
     tv.tv_usec = 0;
-    tv.tv_sec = p_pld->timeout;
+    tv.tv_sec = p_ld->timeout;
 
     int str_err = setsockopt(
-        p_pld->fd,
+        p_ld->fd,
         SOL_SOCKET,
         SO_RCVTIMEO,
         (const char*)&tv,
@@ -302,51 +296,307 @@ static void serve_client(void * sock_void)
 
     // If we get a null then we know that some kind of error occurred and
     // has been handled
-    wire_payload_t * p_wire = read_client_req(p_pld);
+    wire_payload_t * p_wire = read_client_req(p_ld);
     if (NULL == p_wire)
     {
         goto ret_null;
     }
 
-    ctrl_destroy(&p_wire, NULL);
-
-
+    act_resp_t * resp = ctrl_parse_action(p_ld->p_db, p_wire);
+    write_response(p_ld, resp);
+    ctrl_destroy(&p_wire, &resp);
 
 ret_null:
-    destroy_worker_pld(&p_pld);
+    destroy_worker_pld(&p_ld);
     return;
 }
 
-static wire_payload_t * read_client_req(worker_payload_t * pld)
+/*!
+ * @brief Function destroys the worker payload
+ *
+ * @param pp_ld Double pointer to the worker payload
+ */
+static void destroy_worker_pld(worker_payload_t ** pp_ld)
+{
+    if ((NULL == pp_ld) || (NULL == *pp_ld))
+    {
+        return;
+    }
+    worker_payload_t * p_ld = *pp_ld;
+    close(p_ld->fd);
+
+    *p_ld = (worker_payload_t){
+        .fd         = 0,
+        .p_db       = NULL,
+        .timeout    = 0
+    };
+    free(p_ld);
+    *pp_ld = NULL;
+    return;
+}
+
+
+/*!
+ * @brief Function performs the "reading" portion of the client communications.
+ * It parses out the headers to return a wire_payload_t. The wire_payload_t
+ * contains a union that holds the type of payload sent which is either
+ * the std_payload_t (file stuffs) or user_payload_t (user creations)
+ *
+ * @param p_ld Pointer to the worker_payload object
+ * @return wire_payload_t object
+ */
+static wire_payload_t * read_client_req(worker_payload_t * p_ld)
 {
     wire_payload_t * p_wire = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
+    act_resp_t * resp = NULL;
     if (UV_INVALID_ALLOC == verify_alloc(p_wire))
     {
         goto ret_null;
     }
 
-    ret_codes_t result = read_stream(pld->fd, &p_wire->opt_code, H_OPCODE);
+    ret_codes_t result = read_stream(p_ld->fd, &p_wire->opt_code, H_OPCODE);
     if (OP_SUCCESS != result)
     {
-        act_resp_t * resp = ctrl_populate_resp(result);
-        if (NULL == resp)
-        {
-            goto cleanup;
-        }
-        debug_print("%s\n", "[WORKER - READ_CLIENT] Failed to read from client,"
-                            " sending a response packet");
-        write_response(pld, resp);
-        goto cleanup;
+        goto failure_response;
     }
 
-    printf("Got an op code of %d\n", p_wire->opt_code);
+    result = read_stream(p_ld->fd, &p_wire->_reserved, H_RESERVED);
+    if (OP_SUCCESS != result)
+    {
+        goto failure_response;
+    }
 
+    result = read_stream(p_ld->fd, &p_wire->username_len, H_USERNAME_LEN);
+    if (OP_SUCCESS != result)
+    {
+        goto failure_response;
+    }
+    p_wire->username_len = ntohs(p_wire->username_len);
+
+    result = read_stream(p_ld->fd, &p_wire->passwd_len, H_PASSWORD_LEN);
+    if (OP_SUCCESS != result)
+    {
+        goto failure_response;
+    }
+    p_wire->passwd_len = ntohs(p_wire->passwd_len);
+
+    result = read_stream(p_ld->fd, &p_wire->session_id, H_SESSION_ID);
+    if (OP_SUCCESS != result)
+    {
+        goto failure_response;
+    }
+    p_wire->session_id = ntohl(p_wire->session_id);
+
+    result = make_byte_array(p_ld,
+                             (uint8_t **)& p_wire->p_username,
+                             p_wire->username_len,
+                             true);
+
+    if (OP_SUCCESS != result)
+    {
+        goto failure_response;
+    }
+    result = make_byte_array(p_ld,
+                             (uint8_t **)&p_wire->p_passwd,
+                             p_wire->passwd_len,
+                             true);
+
+    if (OP_SUCCESS != result)
+    {
+        goto failure_response;
+    }
+
+    result = read_stream(p_ld->fd, &p_wire->payload_len, H_PAYLOAD_LEN);
+    if (OP_SUCCESS != result)
+    {
+        goto failure_response;
+    }
+    p_wire->payload_len = ntohll(p_wire->payload_len);
+
+
+
+    if (ACT_USER_OPERATION == p_wire->opt_code)
+    {
+        result = read_client_user_payload(p_ld, p_wire);
+        if (OP_SUCCESS != result)
+        {
+            goto failure_response;
+        }
+    }
+    else if (ACT_LOCAL_OPERATION != p_wire->opt_code)
+    {
+        result = read_client_std_payload(p_ld, p_wire);
+        if (OP_SUCCESS != result)
+        {
+            goto failure_response;
+        }
+    }
+    return p_wire;
+
+failure_response:
+    resp = ctrl_populate_resp(result);
+    if (NULL == resp)
+    {
+        goto cleanup;
+    }
+    debug_print("%s\n", "[WORKER - READ_CLIENT] Failed to read from client,"
+                        " sending a response packet");
+    write_response(p_ld, resp);
 cleanup:
     ctrl_destroy(&p_wire, NULL);
 ret_null:
     return NULL;
 }
 
+static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
+                                           wire_payload_t * p_wire)
+{
+    ret_codes_t result = OP_FAILURE;
+    p_wire->p_std_payload = (std_payload_t *)calloc(1, sizeof(std_payload_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_wire->p_std_payload))
+    {
+        goto ret_null;
+    }
+    std_payload_t * p_load =  p_wire->p_std_payload;
+
+    /*
+     * 0               1               2               3
+     * 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |          PATH_LEN             |         **PATH_NAME**         |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |                     **FILE_DATA_STREAM**                      |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     */
+
+    result = read_stream(p_ld->fd, &p_load->path_len, H_PATH_LEN);
+    if (OP_SUCCESS != result)
+    {
+        goto ret_null;
+    }
+    p_load->path_len = htons(p_load->path_len);
+
+    result = make_byte_array(p_ld,
+                             (uint8_t **)&p_load->p_path,
+                             p_load->path_len,
+                             true);
+
+    if (OP_SUCCESS != result)
+    {
+        goto ret_null;
+    }
+
+    if (std_payload_has_file(p_wire->payload_len, p_load->path_len))
+    {
+        result = make_byte_array(p_ld,
+                                 &p_load->p_hash_stream,
+                                 H_HASH_LEN,
+                                 false);
+        if (OP_SUCCESS != result)
+        {
+            goto ret_null;
+        }
+
+        p_load->byte_stream_len = get_file_stream_size(p_wire->payload_len,
+                                                       p_load->path_len);
+
+        result = make_byte_array(p_ld,
+                                 &p_load->p_byte_stream,
+                                 p_load->byte_stream_len,
+                                 false);
+        if (OP_SUCCESS != result)
+        {
+            goto ret_null;
+        }
+    }
+    return OP_SUCCESS;
+
+ret_null:
+    return result;
+}
+
+static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
+                                            wire_payload_t * p_wire)
+{
+    ret_codes_t result = OP_FAILURE;
+    p_wire->type = USER_PAYLOAD;
+
+    // Create the payload portion that goes inside the wire_payload_t
+    p_wire->p_user_payload = (user_payload_t *)calloc(1, sizeof(user_payload_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_wire->p_user_payload))
+    {
+        goto ret_null;
+    }
+    user_payload_t * p_load =  p_wire->p_user_payload;
+
+    /*
+     * 0               1               2               3
+     * 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |  USR_ACT_FLAG |   PERMISSION  |          USERNAME_LEN         |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * | **USERNAME**  |         PASSWORD_LEN          | **PASSWORD**  |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     */
+    result = read_stream(p_ld->fd, &p_load->user_flag, H_USR_ACT_FLAG);
+    if (OP_SUCCESS != result)
+    {
+        goto ret_null;
+    }
+
+    result = read_stream(p_ld->fd, &p_load->user_perm, H_USR_PERMISSION);
+    if (OP_SUCCESS != result)
+    {
+        goto ret_null;
+    }
+
+    result = read_stream(p_ld->fd, &p_load->username_len, H_USERNAME_LEN);
+    if (OP_SUCCESS != result)
+    {
+        goto ret_null;
+    }
+    p_load->username_len = ntohs(p_load->username_len);
+
+    result = make_byte_array(p_ld,
+                             (uint8_t **)&p_load->p_username,
+                             p_load->username_len,
+                             true);
+
+    // Only "Create user" commands have the password field filled
+    if (user_payload_has_password(p_wire->payload_len, p_load->passwd_len))
+    {
+        result = read_stream(p_ld->fd, &p_load->passwd_len, H_PASSWORD_LEN);
+        if (OP_SUCCESS != result)
+        {
+            goto ret_null;
+        }
+        result = make_byte_array(p_ld,
+                                 (uint8_t **)&p_load->p_passwd,
+                                 p_load->passwd_len,
+                                 true);
+
+    }
+    return result;
+
+ret_null:
+    return result;
+}
+
+/*!
+ * @brief Function handles writing the response message to the client after
+ * their request has been parsed. All responses have the same header to
+ * include the "**MSG**" which is a string representing the status of the
+ * operation.
+ *
+ * The file data stream is an optional section that is only used with
+ * LS command and GET command holding that data stream to return in the
+ * format for (BYTE_STREAM_HASH)(BYTE_STREAM).
+ *
+ * @param p_ld Pointer to the worker_payload_t object
+ * @param p_resp act_resp_t contains the data that has been created
+ * by the user after it processed the user request. It will contain all
+ * the information that was requested even if it's just an error message.
+ */
 static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
 {
     /*
@@ -513,6 +763,17 @@ static ret_codes_t read_stream(int fd, void * payload, size_t bytes_to_read)
     ssize_t total_bytes_read = 0;
     ret_codes_t res = OP_FAILURE;
 
+    if (0 == bytes_to_read)
+    {
+        res = OP_SUCCESS;
+        goto ret_null;
+    }
+
+    if (NULL == payload)
+    {
+        goto ret_null;
+    }
+
     // Buffer will be used to read from the file descriptor
     uint8_t * read_buffer = (uint8_t *)calloc(1, bytes_to_read + 1);
     if (UV_INVALID_ALLOC == verify_alloc(read_buffer))
@@ -580,3 +841,106 @@ ret_null:
 }
 
 
+
+
+/*
+ *
+ * Expressive functions used to increase readability
+ *
+ */
+
+/*!
+ * @brief Function is just used for readability sakes
+ */
+static bool user_payload_has_password(uint64_t payload_len,
+                                      uint16_t password_len)
+{
+    uint32_t r_operand = H_USR_ACT_FLAG + H_USR_PERMISSION + password_len;
+    if (payload_len <= r_operand)
+    {
+        return false;
+    }
+    return true;
+}
+
+/*!
+ * @brief Function is just used for readability sakes
+ */
+static bool std_payload_has_file(uint64_t payload_len, uint16_t path_len)
+{
+    return ((payload_len - path_len) >= H_HASH_LEN);
+}
+
+/*!
+ * @brief Safely calculate the amount of bytes left in the payload
+ */
+static uint64_t get_file_stream_size(uint64_t payload_len, uint16_t path_len)
+{
+    uint32_t r_operand = path_len + H_HASH_LEN;
+    if (payload_len < r_operand)
+    {
+        return 0;
+    }
+    return payload_len - r_operand;
+}
+
+/*!
+ * @brief Function is used to create the strings provided in the payload.
+ *
+ * @param p_ld Thread worker structure object
+ * @param pp_byte_array Double pointer to where the string will be set to
+ * @param array_len Length of the string
+ * @return Server ret code
+ */
+static ret_codes_t make_byte_array(worker_payload_t * p_ld,
+                                   uint8_t ** pp_byte_array,
+                                   uint64_t array_len,
+                                   bool make_string)
+{
+    if (0 == array_len)
+    {
+        return OP_SUCCESS;
+    }
+
+    uint8_t * p_array = NULL;
+    ret_codes_t result = OP_FAILURE;
+    if (make_string)
+    {
+        p_array = (uint8_t *)calloc(array_len, sizeof(uint8_t) + 1);
+    }
+    else
+    {
+        p_array = (uint8_t *)calloc(array_len, sizeof(uint8_t));
+    }
+
+    if (UV_INVALID_ALLOC == verify_alloc(p_array))
+    {
+        goto ret_null;
+    }
+
+    result = read_stream(p_ld->fd, p_array, array_len);
+    if (OP_SUCCESS != result)
+    {
+        goto ret_null;
+    }
+
+    if (make_string)
+    {
+        p_array[array_len] = '\0';
+    }
+
+    *pp_byte_array = p_array;
+    return OP_SUCCESS;
+
+ret_null:
+    return result;
+}
+
+/*!
+ * @brief Return the port used from the connection
+ */
+static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port)
+{
+    return getnameinfo(addr, addr_size, host, NI_MAXHOST, port, NI_MAXSERV, NI_NUMERICSERV);
+
+}

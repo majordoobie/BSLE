@@ -94,23 +94,35 @@ class ClientRequest:
                 using "--create_user"
             **kwargs (dict): Remainder of optional arguments passed.
         """
-        self.host = host
-        self.port = port
-        self.username = username
-        self.src = src
-        self.dst = dst
-        self.perm = perm
-        self.session_id = session_id
+        self._host = host
+        self._port = port
+        self._username = username
+        self._src = src
+        self._dst = dst
+        self._perm = perm
+        self._session_id = session_id
+        self._password: str = ""
 
-        self.action: [ActionType] = ActionType.NO_OP
-        self.user_flag: [ActionType] = ActionType.NO_OP
-        self.local_action: [ActionType] = ActionType.NO_OP
+        self._action: [ActionType] = ActionType.NO_OP
+        self._user_flag: [ActionType] = ActionType.NO_OP
+        self._local_action: [ActionType] = ActionType.NO_OP
+
+        self._other_username: str = ""
+        self._other_password: str = ""
 
         self._parse_kwargs(kwargs)
 
     @property
     def socket(self) -> tuple[str, int]:
-        return self.host, self.port
+        return self._host, self._port
+
+    @property
+    def passwd(self) -> str:
+        return self._password
+
+    @passwd.setter
+    def passwd(self, value: str) -> None:
+        self._password = value
 
     @property
     def client_request(self):
@@ -132,8 +144,43 @@ class ClientRequest:
             +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         :return:
         """
-        request_header = struct.pack("!BBHHL",
-                                     )
+        request_header = bytearray(struct.pack("!BBHHL",
+                                               self._action.value,
+                                               0,
+                                               len(self._username),
+                                               len(self.passwd),
+                                               self._session_id,
+                                               ))
+        request_header += self._username.encode(encoding="utf-8")
+        request_header += self._password.encode(encoding="utf-8")
+
+        """
+        Create the user payload
+           0               1               2               3   
+           0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |  USR_ACT_FLAG |   PERMISSION  |          USERNAME_LEN         |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           | **USERNAME**  |         PASSWORD_LEN          | **PASSWORD**  |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        """
+        if self._action == ActionType.USER_OP:
+            user_payload = struct.pack("!BBH",
+                                       self._user_flag.value,
+                                       self._perm.value,
+                                       len(self._other_username)
+                                       )
+
+            # Add the user_payload to the request payload
+            request_header += user_payload
+            request_header += self._other_username.encode(encoding="utf-8")
+
+            user_payload = struct.pack("!H", len(self._other_password))
+            request_header += user_payload
+            request_header += self._other_password.encode("utf-8")
+
+        return request_header
+
 
 
     def _parse_kwargs(self, kwargs) -> None:
@@ -152,6 +199,8 @@ class ClientRequest:
         action = None
         for key, value in kwargs.items():
             if value:
+                if key in ("create_user", "delete_use"):
+                    self._other_username = value
                 if action is not None:
                     raise ValueError("[!] Only one command flag may be set")
                 action = key
@@ -161,44 +210,44 @@ class ClientRequest:
 
         for name, member in ActionType.__members__.items():
             if name == action.upper():
-                self.action: ActionType = member
+                self._action: ActionType = member
 
         dep_value = 0
         for name, member in DependencyAction.__members__.items():
-            if name == self.action.name:
+            if name == self._action.name:
                 dep_value = member.value
                 break
 
         if dep_value == 1:
-            if self.src is None:
-                raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
+            if self._src is None:
+                raise ValueError(f"[!] Command \"--{self._action.name.lower()}\""
                                  f" requires \"--src\" argument")
 
         elif dep_value == 2:
-            if self.dst is None:
-                raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
+            if self._dst is None:
+                raise ValueError(f"[!] Command \"--{self._action.name.lower()}\""
                                  f" requires \"--dst\" argument")
 
         elif dep_value == 3:
-            if self.dst is None or self.src is None:
-                raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
+            if self._dst is None or self._src is None:
+                raise ValueError(f"[!] Command \"--{self._action.name.lower()}\""
                                  f" requires \"--src\" and \"--dst\" argument")
 
         elif dep_value == 4:
-            if self.perm is None:
-                raise ValueError(f"[!] Command \"--{self.action.name.lower()}\""
+            if self._perm is None:
+                raise ValueError(f"[!] Command \"--{self._action.name.lower()}\""
                                  f" requires \"--perm\" argument")
 
         # Is command is to either create or delete a user, set the action
         # flag to USER_OP and set the USER_FLAG to the type of user op
-        if self.action in (ActionType.DELETE_USER, ActionType.CREATE_USER):
-            self.user_flag = self.action
-            self.action = ActionType.USER_OP
+        if self._action in (ActionType.DELETE_USER, ActionType.CREATE_USER):
+            self._user_flag = self._action
+            self._action = ActionType.USER_OP
 
         # If command is a local operation, set the action type to the LOCAL_OP
         # this will instruct the server to only authenticate
-        if self.action in (ActionType.L_LS, ActionType.L_MKDIR, ActionType.L_DELETE):
-            self.user_flag = self.action
-            self.action = ActionType.LOCAL_OP
+        if self._action in (ActionType.L_LS, ActionType.L_MKDIR, ActionType.L_DELETE):
+            self._user_flag = self._action
+            self._action = ActionType.LOCAL_OP
 
 

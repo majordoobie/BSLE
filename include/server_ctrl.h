@@ -19,35 +19,38 @@ typedef enum
 
 typedef struct
 {
-    size_t          path_len;
-    char *          p_path;
+    uint16_t       path_len;
+    char *         p_path;
 
     // Byte stream are only populated for PutRemote command
     uint8_t *       p_byte_stream;
-    size_t          byte_stream_len;
+    uint8_t *       p_hash_stream;
+
+    uint64_t         byte_stream_len;
 } std_payload_t;
 
 typedef struct
 {
     usr_act_t   user_flag;
     perms_t     user_perm;  // Only set for user creation
-    size_t      username_len;
+    uint16_t    username_len;
     char *      p_username;
 
     // Password is only set for user creation
-    size_t      passwd_len;
+    uint16_t    passwd_len;
     char *      p_passwd;
 } user_payload_t;
 
 typedef struct
 {
     act_t           opt_code;
-    size_t          username_len;
-    size_t          passwd_len;
-    uint16_t        session_id;
+    uint16_t        username_len;
+    uint16_t        passwd_len;
+    uint32_t        session_id;
     char *          p_username;
     char *          p_passwd;
-    size_t          payload_len;  // Size of everything but wire header
+    uint64_t        payload_len;  // Size of everything but wire header
+    uint8_t         _reserved;
 
     payload_type_t type;
     union
