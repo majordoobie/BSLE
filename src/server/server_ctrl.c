@@ -90,6 +90,11 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
     // Check operations from most to least exclusive
     switch (p_ld->opt_code)
     {
+        case ACT_LOCAL_OPERATION:
+        {
+            set_resp(&p_resp, OP_SUCCESS);
+            goto ret_resp;
+        }
         case ACT_USER_OPERATION:
             switch (p_ld->p_user_payload->user_flag)
             {

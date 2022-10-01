@@ -67,6 +67,7 @@ typedef enum
     ACT_GET_REMOTE_FILE         = 4,
     ACT_MAKE_REMOTE_DIRECTORY   = 5,
     ACT_PUT_REMOTE_FILE         = 6,
+    ACT_LOCAL_OPERATION         = 7
 } act_t;
 
 typedef enum
