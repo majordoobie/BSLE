@@ -18,6 +18,7 @@ extern "C" {
 #include <thread_pool.h>
 #include <utils.h>
 #include <server.h>
+#include <server_ctrl.h>
 
 
 void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout);

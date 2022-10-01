@@ -5,6 +5,7 @@ DEBUG_STATIC uint32_t get_timeout(char * timeout);
 static uint8_t str_to_long(char * str_num, long int * int_val);
 verified_path_t * get_home_dir(char * home_dir);
 static void print_usage(void);
+
 /*!
  * @brief Free the args object
  * @param pp_args Double pointer to the args object

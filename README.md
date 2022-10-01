@@ -68,3 +68,77 @@ $ python3 builder.py -t gtest_server_crypto
 [==========] 7 tests from 2 test suites ran. (3 ms total)
 [  PASSED  ] 7 tests.
 ```
+
+# Headers
+## Legend
+
+| Symbol      | Description                   |
+|-------------|-------------------------------|
+| <- LABEL -> | The label spans multiple rows |
+| \*\*LABEL** | Field is of variable length   |
+| ~LABEL~     | Next header segment           |
+
+## Client Request Header
+> Note that all `FILE_DATA_STREAM` are prepended with a 32 byte hash of 
+> the file. The file length then becomes `PAYLOAD_LEN - 32`
+> 
+> The `FILE_DATA_STREAM` is also limited to 1016 bytes per payload so once
+> the section is hit, you must start to account for the MTU size of 1016
+
+```
+    0                   1                   2                   3   
+    0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |     OPCODE    |    RESERVED   |         USERNAME_LEN          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |           PASSWD LEN          |        SESSION_ID ->          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |       < - SESSION_ID          |     **USERNAME + PASSWD**     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                          PAYLOAD_LEN ->                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       <- PAYLOAD_LEN                          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                ~FILE PAYLOAD OR USER PAYLOAD~                 |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+## Client Request File Payload
+To indicate that there is a file data stream (Only occurs during REMOTE PUT command)
+`(PAYLOAD_LEN - PATH_LEN) > 0`
+```
+    0                   1                   2                   3   
+    0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |          PATH_LEN             |         **PATH_NAME**         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     **FILE DATA STREAM**                      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+##  Client Request User Payload
+To indicate that there is a password field (Only occurs during user creation)
+`(PAYLOAD_LEN - (USR_ACT_FLAG + PERMISSION + USERNAME_LEN)) > 0`
+```
+    0                   1                   2                   3   
+    0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  USR_ACT_FLAG |   PERMISSION  |  USERNAME_LEN | **USERNAME**  |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | PASSWORD_LEN  | **PASSWORD**  |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+## Server Response
+```
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   | RETURN_CODE   |    RESERVED   |          SESSION_ID->         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |       <- SESSION_ID           |         PAYLOAD_LEN ->        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      <- PAYLOAD_LEN ->                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |       <- PAYLOAD_LEN          |    CODE_MSG    |   **MSG**    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    **FILE DATA STREAM**                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```

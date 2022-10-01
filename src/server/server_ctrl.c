@@ -26,6 +26,7 @@ static void do_get_file(db_t * p_db, wire_payload_t * p_ld, act_resp_t ** pp_res
 static void do_list_dir(db_t * p_db,
                         wire_payload_t * p_ld,
                         act_resp_t ** pp_resp);
+
 /*!
  * @brief Function handles authenticating the user and calling the correct
  * API to perform the action requested.

@@ -1,4 +1,7 @@
+import struct
 from dataclasses import dataclass
+import socket
+from time import sleep
 
 from cli_parser import get_args, ActionType, ClientAction
 
@@ -83,21 +86,44 @@ def _do_ldelete(args: ClientAction) -> None:
         print(f"[!] {error}")
 
 
+def _socket_timedout(conn: socket.socket):
+    i = conn.recv(1, socket.MSG_PEEK)
+    payload = struct.unpack(">B", i)
+    print("The timout func read ", payload)
+    if i[0] == 2:
+        return True
+    return False
+
+
 def main() -> None:
-    args = None
-    try:
-        args = get_args()
-    except Exception as error:
-        exit(error)
+    # args = None
+    # try:
+    #     args = get_args()
+    # except Exception as error:
+    #     exit(error)
+    #
+    # if ActionType.L_LS == args.action:
+    #     _do_list_ldir(args)
+    #
+    # elif ActionType.L_MKDIR == args.action:
+    #     _do_lmkdir(args)
+    #
+    # elif ActionType.L_DELETE == args.action:
+    #     _do_ldelete(args)
 
-    if ActionType.L_LS == args.action:
-        _do_list_ldir(args)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+            payload = struct.pack(">B", 1)
+            conn.connect(("127.0.0.1", 31337))
+            sleep(7)
+            if _socket_timedout(conn):
+                exit("[!] Session timeout")
 
-    elif ActionType.L_MKDIR == args.action:
-        _do_lmkdir(args)
+            i = conn.send(payload)
+            print("got ", i)
 
-    elif ActionType.L_DELETE == args.action:
-        _do_ldelete(args)
+
+        # print(f"[Sent to server] Client TCP port: {tcp_port}")
+        # print(f"[Sent to server] Client will send: {payload_size} bytes")
 
 
 if __name__ == "__main__":

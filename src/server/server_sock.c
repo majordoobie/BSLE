@@ -16,6 +16,8 @@ DEBUG_STATIC void serve_client(void * sock_void);
 static void signal_handler(int signal);
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
 static void destroy_worker_pld(worker_payload_t ** pp_w_pld);
+static wire_payload_t * read_socket(worker_payload_t * pld);
+static int8_t read_stream(int fd, void * payload, size_t bytes_to_read);
 
 void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout)
 {
@@ -125,10 +127,48 @@ ret_null:
 DEBUG_STATIC void serve_client(void * sock_void)
 {
     worker_payload_t * p_pld = (worker_payload_t *)sock_void;
+    struct timeval tv;
+    tv.tv_usec = 0;
+    tv.tv_sec = p_pld->timeout;
 
-    printf("Thread got work\n");
+    int str_err = setsockopt(
+        p_pld->fd,
+        SOL_SOCKET,
+        SO_RCVTIMEO,
+        (const char*)&tv,
+        sizeof(tv)
+    );
+    if (-1 == str_err)
+    {
+        fprintf(stderr, "[!] Unable to set client sockets timeout\n");
+        goto ret_null;
+    }
+    // TODO need to read from the socket here
+    wire_payload_t * p_wire = read_socket(p_pld);
+    ctrl_destroy(&p_wire, NULL);
 
+
+
+ret_null:
     destroy_worker_pld(&p_pld);
+    return;
+}
+
+static wire_payload_t * read_socket(worker_payload_t * pld)
+{
+    wire_payload_t * p_wire = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_wire))
+    {
+        goto ret_null;
+    }
+
+    read_stream(pld->fd, &p_wire->opt_code, H_OPCODE);
+    printf("Got an op code of %d\n", p_wire->opt_code);
+
+
+
+ret_null:
+    return NULL;
 }
 
 /*!
@@ -282,4 +322,76 @@ static void destroy_worker_pld(worker_payload_t ** pp_w_pld)
     free(p_w_pld);
     *pp_w_pld = NULL;
     return;
+}
+
+static int8_t read_stream(int fd, void * payload, size_t bytes_to_read)
+{
+    ssize_t read_bytes;
+    ssize_t total_bytes_read = 0;
+
+    // Buffer will be used to read from the file descriptor
+    uint8_t * read_buffer = (uint8_t *)calloc(1, bytes_to_read + 1);
+    if (UV_INVALID_ALLOC == verify_alloc(read_buffer))
+    {
+        debug_print_err("%s\n", "Unable to allocate memory for read_buffer");
+        goto ret_null;
+    }
+
+    uint8_t * payload_buffer = (uint8_t *)calloc(1, bytes_to_read + 1);
+    if (UV_INVALID_ALLOC == verify_alloc(payload_buffer))
+    {
+        debug_print_err("%s\n", "Unable to allocate memory for read_buffer");
+        goto clean_read_buff;
+    }
+
+    bool keep_reading = true;
+    while (keep_reading)
+    {
+        read_bytes = read(fd, read_buffer, 1);
+        if (-1 == read_bytes)
+        {
+            // If timed out, display message indicating that it timed out
+            if ((EAGAIN == errno) || (EWOULDBLOCK == errno))
+            {
+                debug_print("%s\n", "[STREAM READ] Read timed out");
+                uint8_t kill = OP_SESSION_ERROR;
+                write(fd, &kill, 1);
+                goto clean_buffers;
+            }
+            else
+            {
+                debug_print_err("[STREAM READ] Unable to read from fd: %s\n", strerror(errno));
+            }
+            goto clean_buffers;
+        }
+        else if (0 == read_bytes)
+        {
+            debug_print_err("%s\n", "[STREAM READ] Read zero bytes. Client likely closed connection.");
+            goto clean_buffers;
+        }
+
+        // Use string operations to concatenate the final payload buffer
+        memcpy(payload_buffer + total_bytes_read, read_buffer, (unsigned long)read_bytes);
+        total_bytes_read = total_bytes_read + read_bytes;
+
+        if (total_bytes_read == bytes_to_read)
+        {
+            keep_reading = false;
+        }
+    }
+
+    // Copy the data read into the callers buffer
+    memcpy(payload, payload_buffer, bytes_to_read);
+
+    // Free the working buffers
+    free(read_buffer);
+    free(payload_buffer);
+    return 0;
+
+clean_buffers:
+    free(payload_buffer);
+clean_read_buff:
+    free(read_buffer);
+ret_null:
+    return -1;
 }

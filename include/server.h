@@ -15,7 +15,20 @@ typedef enum
     MIN_USERNAME_LEN    = 3,
     MIN_PASSWD_LEN      = 6,
     MAX_PASSWD_LEN      = 32,
+    MAX_WIRE_HEADER     = 64,
+    MAX_WIRE_PAYLOAD    = 2048,
+    MAX_TRX_PAYLOLAD    = 1016,
 } server_defaults_t;
+
+typedef enum
+{
+    H_OPCODE        = 1,
+    H_USER_FLAG     = 1,
+    H_RESERVED      = 2,
+    H_USERNAME_LEN  = 2,
+    H_PASSWORD_LEN  = 2,
+    H_SESSION_ID    = 4,
+} wire_header_t;
 
 typedef enum
 {
