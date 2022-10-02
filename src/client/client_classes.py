@@ -152,6 +152,10 @@ class ClientRequest:
         return self._debug
 
     @property
+    def shell_mode(self) -> bool:
+        return ActionType.SHELL == self._action
+
+    @property
     def action(self) -> ActionType:
         return self._action
 
@@ -191,8 +195,20 @@ class ClientRequest:
     def other_password(self, value: str) -> None:
         self._other_password = value
 
+    def set_auth_headers(self) -> None:
+        self._action = ActionType.LOCAL_OP
+        self._user_flag = ActionType.NO_OP
+
     @property
-    def client_request(self):
+    def session(self) -> int:
+        return self._session_id
+
+    @session.setter
+    def session(self, value: int) -> None:
+        self._session_id = value
+
+    @property
+    def client_request(self) -> bytes:
         """
         0               1               2               3
         0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
@@ -375,6 +391,7 @@ class ClientRequest:
 
         except Exception as error:
             return str(error)
+
 
 
 @dataclass

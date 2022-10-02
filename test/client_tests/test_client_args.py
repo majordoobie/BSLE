@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from src.client import cli_parser
+from src.client import client_cli
 
 
 class TestArgParser(unittest.TestCase):

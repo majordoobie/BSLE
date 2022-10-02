@@ -26,6 +26,15 @@ def _read_stream(conn: socket, size: Union[int, RespHeader], debug: bool = False
     return buffer
 
 
+def _socket_timedout(conn: socket.socket):
+    i = conn.recv(1, socket.MSG_PEEK)
+    payload = struct.unpack(">B", i)
+    print("The timout func read ", payload)
+    if i[0] == 2:
+        return True
+    return False
+
+
 def make_connection(args: ClientRequest) -> ServerResponse:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
         conn.connect(args.socket)
