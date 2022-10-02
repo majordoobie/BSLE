@@ -348,6 +348,26 @@ static void destroy_worker_pld(worker_payload_t ** pp_ld)
  */
 static wire_payload_t * read_client_req(worker_payload_t * p_ld)
 {
+    /*
+     *
+     * 0               1               2               3
+     * 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |     OPCODE    |   USER_FLAG   |           RESERVED            |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |        USERNAME_LEN           |        PASSWORD_LEN           |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |                          SESSION_ID                           |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |                    **USERNAME + PASSWORD**                    |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |                          PAYLOAD_LEN ->                       |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |                       <- PAYLOAD_LEN                          |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * |                ~user_payload || std_payload~                  |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     */
     wire_payload_t * p_wire = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
     act_resp_t * resp = NULL;
     if (UV_INVALID_ALLOC == verify_alloc(p_wire))
@@ -513,6 +533,16 @@ static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
             goto ret_null;
         }
     }
+
+    debug_print("[~] Parsed std payload:\n"
+                "[~]    PATH_LEN:  %s\n"
+                "[~]    PATH_NAME: %d\n"
+                "[~]    FileLen:   %s\n",
+                p_load->path_len,
+                p_load->p_path,
+
+                );
+
     return OP_SUCCESS;
 
 ret_null:

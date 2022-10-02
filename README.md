@@ -89,20 +89,22 @@ $ python3 builder.py -t gtest_server_crypto
    0               1               2               3   
    0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |     OPCODE    |    RESERVED   |         USERNAME_LEN          |
+   |     OPCODE    |   USER_FLAG   |           RESERVED            |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |        PASSWORD_LEN           |        SESSION_ID ->          |
+   |        USERNAME_LEN           |        PASSWORD_LEN           |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |       < - SESSION_ID          |   **USERNAME + PASSWORD**     |
+   |                          SESSION_ID                           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    **USERNAME + PASSWORD**                    |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                          PAYLOAD_LEN ->                       |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                       <- PAYLOAD_LEN                          |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                ~FILE PAYLOAD OR USER PAYLOAD~                 |
+   |                ~user_payload || std_payload~                  |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
-## Client Request File Payload
+## Client Request Std Payload
 To indicate that there is a file data stream (Only occurs during REMOTE PUT command)
 `(PAYLOAD_LEN - PATH_LEN) > 0`
 ```

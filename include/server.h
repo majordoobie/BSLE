@@ -28,7 +28,8 @@ typedef enum
 typedef enum
 {
     H_OPCODE            = 1, // The user action to take
-    H_RESERVED          = 1,
+    H_USER_FLAG         = 1,
+    H_RESERVED          = 2,
     H_USERNAME_LEN      = 2,
     H_PASSWORD_LEN      = 2,
     H_SESSION_ID        = 4,
