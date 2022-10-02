@@ -1,7 +1,7 @@
 #include <server_args.h>
 
 DEBUG_STATIC uint32_t get_port(char * port);
-DEBUG_STATIC uint32_t get_timeout(char * timeout);
+DEBUG_STATIC uint8_t get_timeout(char * timeout);
 static uint8_t str_to_long(char * str_num, long int * int_val);
 verified_path_t * get_home_dir(char * home_dir);
 static void print_usage(void);
@@ -218,9 +218,9 @@ verified_path_t * get_home_dir(char * home_dir)
 /*!
  * @brief Convert the string argument into a integer
  * @param timeout Timeout parameter to convert
- * @return 0 if failure or a uint32_t integer
+ * @return 0 if failure or a uint8_t integer
  */
-DEBUG_STATIC uint32_t get_timeout(char * timeout)
+DEBUG_STATIC uint8_t get_timeout(char * timeout)
 {
     long int converted_timeout = 0;
     int result = str_to_long(timeout, &converted_timeout);
@@ -233,20 +233,19 @@ DEBUG_STATIC uint32_t get_timeout(char * timeout)
 
     // Check that the value is not larger than an uint32max. We cannot
     // guarantee that the value is 32 bits
-    else if (converted_timeout > UINT32_MAX)
+    else if (converted_timeout > MAX_TIMEOUT)
     {
         fprintf(stderr, "[!] Provided timeout exceeds limit of "
-                        "%u seconds\n", UINT32_MAX);
+                        "%u seconds\n", MAX_TIMEOUT);
         return 0;
     }
-    else if (converted_timeout < 0)
+    else if (converted_timeout < 1)
     {
-        fprintf(stderr, "[!] Timeout value cannot be a negative "
-                        "integer\n");
+        fprintf(stderr, "[!] Timeout value cannot be less than 1 second\n");
         return 0;
     }
 
-    return (uint32_t)converted_timeout;
+    return (uint8_t)converted_timeout;
 }
 
 /*!

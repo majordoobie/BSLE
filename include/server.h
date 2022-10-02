@@ -20,6 +20,7 @@ typedef enum
     MAX_FILE_SIZE       = 1016,
     DEFAULT_PORT        = 31337,
     DEFAULT_TIMEOUT     = 10,
+    MAX_TIMEOUT         = 60,     // Max timeout of a minute
 } server_defaults_t;
 
 // header_sizes_t defines the amount of bytes that the field takes in the

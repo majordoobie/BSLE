@@ -171,13 +171,14 @@ class ClientRequest:
                                        len(self._other_username)
                                        )
 
-            # Add the user_payload to the request payload
-            request_header += user_payload
-            request_header += self._other_username.encode(encoding="utf-8")
+            user_payload += self._other_username.encode(encoding="utf-8")
 
-            user_payload = struct.pack("!H", len(self._other_password))
+            if 0 != len(self._other_password):
+                user_payload += struct.pack("!H", len(self._other_password))
+                user_payload += self._other_password.encode("utf-8")
+
+            request_header += struct.pack("!Q", len(user_payload))
             request_header += user_payload
-            request_header += self._other_password.encode("utf-8")
 
         return request_header
 

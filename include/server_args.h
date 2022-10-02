@@ -20,7 +20,7 @@ extern "C" {
 typedef struct
 {
     uint32_t            port;
-    uint32_t            timeout;
+    uint8_t             timeout;
     verified_path_t *   p_home_directory;
 } args_t;
 

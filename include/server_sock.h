@@ -21,7 +21,7 @@ extern "C" {
 #include <server_ctrl.h>
 
 
-void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout);
+void start_server(db_t * p_db, uint32_t port_num, uint8_t timeout);
 
 
 #ifdef __cplusplus

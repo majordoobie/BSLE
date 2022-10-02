@@ -7,7 +7,7 @@
 extern "C"
 {
     uint32_t get_port(char * port);
-    uint32_t get_timeout(char * timeout);
+    uint8_t get_timeout(char * timeout);
 }
 
 class ServerTestValidPorts : public ::testing::TestWithParam<std::tuple<std::string, bool>>{};

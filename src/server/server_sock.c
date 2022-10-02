@@ -22,7 +22,7 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp);
 
 // Readability functions
 static bool std_payload_has_file(uint64_t payload_len, uint16_t path_len);
-static bool user_payload_has_password(uint64_t payload_len, uint16_t password_len);
+static bool user_payload_has_password(uint64_t payload_len, uint16_t username_len);
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
 static uint64_t get_file_stream_size(uint64_t payload_len, uint16_t path_len);
 
@@ -34,7 +34,7 @@ static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
                                             wire_payload_t * p_wire);
 static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
                                            wire_payload_t * p_wire);
-void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout)
+void start_server(db_t * p_db, uint32_t port_num, uint8_t timeout)
 {
 
     // Make the server start listening
@@ -106,7 +106,8 @@ void start_server(db_t * p_db, uint32_t port_num, uint32_t timeout)
             else
             {
                 *w_pld = (worker_payload_t){
-                    .timeout    = timeout,
+                    //TODO CHANGE THIS
+                    .timeout    = 5000,
                     .fd         = client_fd,
                     .p_db       = p_db,
                 };
@@ -413,10 +414,10 @@ static wire_payload_t * read_client_req(worker_payload_t * p_ld)
     }
     p_wire->payload_len = ntohll(p_wire->payload_len);
 
-
-
     if (ACT_USER_OPERATION == p_wire->opt_code)
     {
+        debug_print("%s\n", "[WORKER - READ_CLIENT] Parsing user_payload "
+                            "in client request");
         result = read_client_user_payload(p_ld, p_wire);
         if (OP_SUCCESS != result)
         {
@@ -425,12 +426,15 @@ static wire_payload_t * read_client_req(worker_payload_t * p_ld)
     }
     else if (ACT_LOCAL_OPERATION != p_wire->opt_code)
     {
+        debug_print("%s\n", "[WORKER - READ_CLIENT] Parsing std_payload "
+                            "in client request");
         result = read_client_std_payload(p_ld, p_wire);
         if (OP_SUCCESS != result)
         {
             goto failure_response;
         }
     }
+    debug_print("[WORKER - READ_CLIENT] Inner payload type: %d\n", p_wire->opt_code);
     return p_wire;
 
 failure_response:
@@ -563,7 +567,7 @@ static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
                              true);
 
     // Only "Create user" commands have the password field filled
-    if (user_payload_has_password(p_wire->payload_len, p_load->passwd_len))
+    if (user_payload_has_password(p_wire->payload_len, p_load->username_len))
     {
         result = read_stream(p_ld->fd, &p_load->passwd_len, H_PASSWORD_LEN);
         if (OP_SUCCESS != result)
@@ -574,8 +578,17 @@ static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
                                  (uint8_t **)&p_load->p_passwd,
                                  p_load->passwd_len,
                                  true);
-
     }
+    debug_print("[~] Parsed user payload:\n"
+           "[~]    USER_OP: %s\n"
+           "[~]    O_PERM:  %d\n"
+           "[~]    O_User:  %s\n"
+           "[~]    O_Pass:  %s\n",
+           (USR_ACT_CREATE_USER == p_load->user_flag) ? "CREATE" : "DELETE",
+           p_load->user_perm,
+           p_load->p_username,
+           (NULL != p_load->p_passwd) ? p_load->p_passwd : "None");
+
     return result;
 
 ret_null:
@@ -853,9 +866,9 @@ ret_null:
  * @brief Function is just used for readability sakes
  */
 static bool user_payload_has_password(uint64_t payload_len,
-                                      uint16_t password_len)
+                                      uint16_t username_len)
 {
-    uint32_t r_operand = H_USR_ACT_FLAG + H_USR_PERMISSION + password_len;
+    uint32_t r_operand = H_USR_ACT_FLAG + H_USR_PERMISSION + H_USERNAME_LEN + username_len;
     if (payload_len <= r_operand)
     {
         return false;

@@ -105,6 +105,7 @@ def main() -> None:
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
             conn.connect(args.socket)
+            print(' '.join('{:02x}'.format(x) for x in args.client_request))
             conn.send(args.client_request)
 
             v = conn.recv(1024)
