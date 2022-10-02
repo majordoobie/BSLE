@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from client_request import ClientRequest, UserPerm
+from client_classes import ClientRequest, UserPerm
 
 
 def get_args() -> ClientRequest:
@@ -115,8 +115,9 @@ def get_args() -> ClientRequest:
     )
     user_account_commands.add_argument(
         "--permission", dest="perm", type=UserPerm.permission,
-        choices=list(UserPerm),
-        help="User perms"
+        choices=list(UserPerm), default=UserPerm.READ,
+        help="Permissions of the user to set when creating them "
+             "(Default: %(default)s)"
     )
 
     args = parser.parse_args()

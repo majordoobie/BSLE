@@ -1,10 +1,23 @@
 from __future__ import annotations
 
-import getpass
+import hashlib
 import struct
+from dataclasses import dataclass
 from enum import Enum, auto, unique
 from pathlib import Path
 from typing import Optional
+
+SUCCESS_RESPONSE = 1
+
+
+class RespHeader(Enum):
+    """Byte size of the fields"""
+    RETURN_CODE = 1
+    RESERVED = 1
+    SESSION_ID = 4
+    PAYLOAD_LEN = 8
+    MSG_LEN = 1
+    SHA256DIGEST = 32
 
 
 @unique
@@ -135,6 +148,18 @@ class ClientRequest:
             )
 
     @property
+    def debug(self) -> bool:
+        return self._debug
+
+    @property
+    def action(self) -> ActionType:
+        return self._action
+
+    @property
+    def local_action(self) -> ActionType:
+        return self._user_flag
+
+    @property
     def require_other_password(self) -> bool:
         return self._user_flag == ActionType.CREATE_USER
 
@@ -223,7 +248,7 @@ class ClientRequest:
             request_header += struct.pack("!Q", len(user_payload))
             request_header += user_payload
 
-        elif ActionType.NO_OP == self._action:
+        elif ActionType.LOCAL_OP == self._action:
             request_header += struct.pack("!Q", 0)
 
         else:
@@ -245,7 +270,6 @@ class ClientRequest:
                 except Exception:
                     raise
 
-            print(len(std_payload))
             request_header += struct.pack("!Q", len(std_payload))
             request_header += std_payload
 
@@ -321,3 +345,48 @@ class ClientRequest:
         if self._action in (ActionType.L_LS, ActionType.L_MKDIR, ActionType.L_DELETE):
             self._user_flag = self._action
             self._action = ActionType.LOCAL_OP
+
+
+@dataclass
+class ServerResponse:
+    request: ClientRequest
+    return_code: int
+    reserved: int
+    session_id: int
+    payload_len: int
+    msg_len: int
+    msg: str
+    digest: Optional[bytes] = None
+    payload: Optional[bytes] = None
+
+    def __str__(self):
+        return f"{self.msg}"
+
+    @property
+    def action(self) -> ActionType:
+        if ActionType.LOCAL_OP == self.request.action:
+            return self.request.local_action
+        return self.request.action
+
+    @property
+    def successful(self) -> bool:
+        return SUCCESS_RESPONSE == self.return_code
+
+    @property
+    def valid_hash(self) -> bool:
+        return self.digest == self._hash()
+
+    def _chunker(self) -> bytes:
+        size = 1024
+        for pos in range(0, len(self.payload), size):
+            yield self.payload[pos: pos + size]
+
+    def _hash(self) -> bytes:
+        sha256_hash = hashlib.sha256()
+        for chunk in self._chunker():
+            sha256_hash.update(chunk)
+        return sha256_hash.digest()
+
+
+
+
