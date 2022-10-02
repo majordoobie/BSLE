@@ -26,6 +26,7 @@ static bool user_payload_has_password(uint64_t payload_len, uint16_t username_le
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
 static uint64_t get_file_stream_size(uint64_t payload_len, uint16_t path_len);
 
+static size_t get_base_resp_size(void);
 static ret_codes_t make_byte_array(worker_payload_t * p_ld,
                                    uint8_t ** pp_byte_array,
                                    uint64_t array_len,
@@ -386,7 +387,7 @@ static wire_payload_t * read_client_req(worker_payload_t * p_ld)
         goto failure_response;
     }
 
-    result = read_stream(p_ld->fd, &p_wire->_reserved, H_RESERVED);
+    result = read_stream(p_ld->fd, &p_wire->_reserved, H_REQ_RESERVED);
     if (OP_SUCCESS != result)
     {
         goto failure_response;
@@ -459,7 +460,6 @@ static wire_payload_t * read_client_req(worker_payload_t * p_ld)
             goto failure_response;
         }
     }
-    debug_print("[WORKER - READ_CLIENT] Inner payload type: %d\n", p_wire->opt_code);
     return p_wire;
 
 failure_response:
@@ -540,13 +540,15 @@ static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
     }
 
     debug_print("[~] Parsed std payload:\n"
-                "[~]    Command:   %s\n"
-                "[~]    PATH_LEN:  %d\n"
-                "[~]    PATH_NAME: %s\n"
-                "[~]    FileLen:   %ld\n",
+                "    [~]    Command:   %s\n"
+                "    [~]    PATH_LEN:  %d\n"
+                "    [~]    PATH_NAME: %s\n"
+                "    [~]    PATH_LEN:  %d\n"
+                "    [~]    FileLen:   %ld\n",
                 action_to_string(p_wire->opt_code),
                 p_load->path_len,
                 p_load->p_path,
+                p_load->path_len,
                 p_load->byte_stream_len
                 );
 
@@ -672,14 +674,13 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
      */
 
     // Complete size of the whole response packet limited to 2048 bytes
-    size_t pkt_msg_size = H_RETURN_CODE + H_RESERVED +
-                       H_SESSION_ID + H_PAYLOAD_LEN + H_MSG_LEN;
+    size_t pkt_msg_size = get_base_resp_size();
 
     // msg is guaranteed to be null terminated
     size_t msg_len = strlen(p_resp->msg);
     pkt_msg_size += msg_len;
 
-    // The size of the payload portion of the packet see the README.md
+    // Payload: MSG_LEN + strlen(msg) + len(stream)
     size_t payload_len = msg_len + H_MSG_LEN;
 
     // Size of the data stream which is limited to 1016 bytes per packet
@@ -706,9 +707,9 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
     memcpy(p_stream, &p_resp->result, H_RETURN_CODE);
     offset += H_RETURN_CODE;
 
-    uint16_t reserved = 0;
-    memcpy((p_stream + offset), &reserved, H_RESERVED);
-    offset += H_RESERVED;
+    uint8_t reserved = 0;
+    memcpy((p_stream + offset), &reserved, H_RESP_RESERVED);
+    offset += H_RESP_RESERVED;
 
     uint32_t session_id = htonl(p_ld->session_id);
     memcpy((p_stream + offset), &session_id, H_SESSION_ID);
@@ -754,6 +755,7 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
             debug_print_err("%s\n", strerror(errno));
             goto cleanup;
         }
+        offset += (size_t)sent_bytes;
 
         total_sent += sent_bytes;
         if (total_sent == total_send_size)
@@ -762,7 +764,6 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
             break;
         }
 
-        offset += (size_t)sent_bytes;
         send_size = total_send_size - (size_t)total_sent;
         send_size = (send_size < MAX_MSG_SIZE) ? send_size : MAX_MSG_SIZE;
     }
@@ -772,6 +773,7 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
     if (data_stream_size > 0)
     {
         total_send_size = data_stream_size;
+        total_sent      = 0;
         send_size = (total_send_size < MAX_FILE_SIZE) ? total_send_size
                                                       : MAX_FILE_SIZE;
         for (;;)
@@ -782,15 +784,15 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
                 debug_print_err("%s\n", strerror(errno));
                 goto cleanup;
             }
-
+            offset += (size_t)sent_bytes;
             total_sent += sent_bytes;
+
             if (total_sent == total_send_size)
             {
                 debug_print("[WORKER - RESP] Responded with %ld bytes\n", total_sent);
                 break;
             }
 
-            offset += (size_t)sent_bytes;
             send_size = total_send_size - (size_t)total_sent;
             send_size = (send_size < MAX_FILE_SIZE) ? send_size : MAX_FILE_SIZE;
         }
@@ -927,6 +929,7 @@ static bool std_payload_has_file(uint64_t payload_len, uint16_t path_len)
     return ((payload_len - path_len) >= H_HASH_LEN);
 }
 
+
 /*!
  * @brief Safely calculate the amount of bytes left in the payload
  */
@@ -1022,4 +1025,9 @@ static const char * action_to_string(act_t code)
         default:
             return "UNKNOWN";
     }
+}
+
+static size_t get_base_resp_size(void)
+{
+    return H_RETURN_CODE + H_RESP_RESERVED + H_SESSION_ID + H_PAYLOAD_LEN + H_MSG_LEN;
 }

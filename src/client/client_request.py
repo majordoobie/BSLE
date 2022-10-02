@@ -208,7 +208,7 @@ class ClientRequest:
            | **USERNAME**  |         PASSWORD_LEN          | **PASSWORD**  |
            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         """
-        if self._action == ActionType.USER_OP:
+        if ActionType.USER_OP == self._action:
             user_payload = struct.pack("!BBH",
                                        self._user_flag.value,
                                        self._perm.value,
@@ -223,6 +223,34 @@ class ClientRequest:
             request_header += struct.pack("!Q", len(user_payload))
             request_header += user_payload
 
+        elif ActionType.NO_OP == self._action:
+            request_header += struct.pack("!Q", 0)
+
+        else:
+            """
+               0               1               2               3   
+               0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
+               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+               |          PATH_LEN             |         **PATH_NAME**         |
+               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+               |                     **FILE_DATA_STREAM**                      |
+               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            """
+            std_payload = struct.pack("!H", len(self._dst))
+            std_payload += self._dst.encode(encoding="utf-8")
+            if ActionType.PUT == self._action:
+                try:
+                    with self._src.open("rb", encoding="utf-8") as handle:
+                        std_payload += handle.read()
+                except Exception:
+                    raise
+
+            print(len(std_payload))
+            request_header += struct.pack("!Q", len(std_payload))
+            request_header += std_payload
+
+        if self._debug:
+            print(' '.join('{:02x}'.format(x) for x in request_header))
         return request_header
 
     def _parse_kwargs(self, kwargs) -> None:

@@ -111,14 +111,14 @@ def main() -> None:
     args.self_password = _get_password(f"[Enter password for {args.self_username}]\n> ")
     if args.require_other_password:
         args.other_password = _get_password(f"[Enter password for {args.other_username}]\n> ")
-
     print(args)
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
             conn.connect(args.socket)
-            print(' '.join('{:02x}'.format(x) for x in args.client_request))
             conn.send(args.client_request)
 
+            v = conn.recv(1024)
+            print(v)
             v = conn.recv(1024)
             print(v)
 
