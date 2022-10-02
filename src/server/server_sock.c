@@ -34,6 +34,7 @@ static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
                                             wire_payload_t * p_wire);
 static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
                                            wire_payload_t * p_wire);
+static const char * action_to_string(act_t code);
 void start_server(db_t * p_db, uint32_t port_num, uint8_t timeout)
 {
 
@@ -381,6 +382,12 @@ static wire_payload_t * read_client_req(worker_payload_t * p_ld)
         goto failure_response;
     }
 
+    result = read_stream(p_ld->fd, &p_wire->user_flag, H_USER_FLAG);
+    if (OP_SUCCESS != result)
+    {
+        goto failure_response;
+    }
+
     result = read_stream(p_ld->fd, &p_wire->_reserved, H_RESERVED);
     if (OP_SUCCESS != result)
     {
@@ -535,12 +542,14 @@ static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
     }
 
     debug_print("[~] Parsed std payload:\n"
-                "[~]    PATH_LEN:  %s\n"
-                "[~]    PATH_NAME: %d\n"
-                "[~]    FileLen:   %s\n",
+                "[~]    Command:   %s\n"
+                "[~]    PATH_LEN:  %d\n"
+                "[~]    PATH_NAME: %s\n"
+                "[~]    FileLen:   %ld\n",
+                action_to_string(p_wire->opt_code),
                 p_load->path_len,
                 p_load->p_path,
-
+                p_load->byte_stream_len
                 );
 
     return OP_SUCCESS;
@@ -693,7 +702,7 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
     memcpy(p_stream, &p_resp->result, H_RETURN_CODE);
     offset += H_RETURN_CODE;
 
-    uint8_t reserved = 0;
+    uint16_t reserved = 0;
     memcpy((p_stream + offset), &reserved, H_RESERVED);
     offset += H_RESERVED;
 
@@ -986,4 +995,27 @@ static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host,
 {
     return getnameinfo(addr, addr_size, host, NI_MAXHOST, port, NI_MAXSERV, NI_NUMERICSERV);
 
+}
+
+static const char * action_to_string(act_t code)
+{
+    switch (code)
+    {
+        case ACT_USER_OPERATION:
+            return "USER_OPERATION";
+        case ACT_DELETE_REMOTE_FILE:
+            return "DELETE_REMOTE_FILE";
+        case ACT_LIST_REMOTE_DIRECTORY:
+            return "LIST_REMOTE_DIR";
+        case ACT_GET_REMOTE_FILE:
+            return "GET_REMOTE_FILE";
+        case ACT_MAKE_REMOTE_DIRECTORY:
+            return "MAKE_REMOTE_DIR";
+        case ACT_PUT_REMOTE_FILE:
+            return "PUT_REMOTE_FILE";
+        case ACT_LOCAL_OPERATION:
+            return "LOCAL_OP";
+        default:
+            return "UNKNOWN";
+    }
 }

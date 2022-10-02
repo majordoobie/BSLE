@@ -43,14 +43,15 @@ typedef struct
 
 typedef struct
 {
-    act_t           opt_code;
+    act_t           opt_code;       // 1 byte
+    usr_act_t       user_flag;      // 1 byte
+    uint16_t        _reserved;
     uint16_t        username_len;
     uint16_t        passwd_len;
     uint32_t        session_id;
     char *          p_username;
     char *          p_passwd;
     uint64_t        payload_len;  // Size of everything but wire header
-    uint8_t         _reserved;
 
     payload_type_t type;
     union

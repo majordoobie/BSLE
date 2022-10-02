@@ -147,7 +147,7 @@ class ClientRequest:
         """
         request_header = bytearray(struct.pack("!BBHHHL",
                                                self._action.value,
-                                               self._user_flag,
+                                               self._user_flag.value,
                                                0,
                                                len(self._username),
                                                len(self.passwd),
