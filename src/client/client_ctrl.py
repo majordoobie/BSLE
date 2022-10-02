@@ -41,11 +41,9 @@ def _parse_dir(array: Union[str, bytes]) -> None:
 
     :param array: String array in the format of `f_type:f_size:f_name\n`
     """
-
     if not array:
         print("[!] Directory is empty")
         return
-    print("has stuff")
 
     if isinstance(array, bytes):
         array = array.decode(encoding="utf-8")
@@ -102,7 +100,8 @@ def parse_action(resp: ServerResponse) -> None:
         if resp.valid_hash:
             _parse_dir(resp.payload)
 
-    elif resp.action in [ActionType.MKDIR, ActionType.PUT, ActionType.DELETE]:
+    elif resp.action in [ActionType.MKDIR, ActionType.PUT,
+                         ActionType.DELETE, ActionType.USER_OP]:
         print(f"[+] {resp.msg}")
 
     elif ActionType.GET == resp.action:

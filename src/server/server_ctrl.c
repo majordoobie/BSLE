@@ -14,7 +14,8 @@ static const char * OP_11 = "Path provided is not of type regular file.";
 static const char * OP_12 = "Directory could not be created because it already exists";
 static const char * OP_13 = "Network socket is closed, cannot read or send anymore data";
 static const char * OP_14 = "User could not be removed because they do not exist";
-static const char * OP_15 = "File request exists but it is empty";
+static const char * OP_15 = "File requested exists but it is empty";
+static const char * OP_16 = "Directory requested exists but it is empty";
 static const char * OP_254 = "I/O error occurred during the action. This could be due to permissions, file not existing, or error while writing and reading.";
 static const char * OP_255 = "Server action failed";
 
@@ -257,11 +258,19 @@ static void do_list_dir(db_t * p_db,
         set_resp(pp_resp, code);
         return;
     }
-    debug_print("[~] Read dir listing of %ld from %s\n",
-                p_content->stream_size, p_content->p_path);
+    else if (0 == p_content->stream_size)
+    {
+        set_resp(pp_resp, OP_DIR_EMPTY);
+        f_destroy_content(&p_content);
+    }
+    else
+    {
+        debug_print("[~] Read dir listing of %ld from %s\n",
+                    p_content->stream_size, p_content->p_path);
+        set_resp(pp_resp, OP_SUCCESS);
+        (*pp_resp)->p_content = p_content;
+    }
 
-    set_resp(pp_resp, OP_SUCCESS);
-    (*pp_resp)->p_content = p_content;
     return;
 }
 
@@ -511,6 +520,8 @@ static const char * get_err_msg(ret_codes_t res)
             return OP_14;
         case OP_FILE_EMPTY:
             return OP_15;
+        case OP_DIR_EMPTY:
+            return OP_16;
         case OP_IO_ERROR:
             return OP_254;
         default:
