@@ -1,3 +1,4 @@
+import getpass
 import struct
 from dataclasses import dataclass
 import socket
@@ -96,12 +97,22 @@ def _socket_timedout(conn: socket.socket):
     return False
 
 
+def _get_password(msg: str) -> str:
+    return getpass.getpass(msg)
+
+
 def main() -> None:
     args = None
     try:
         args = cli_parser.get_args()
     except Exception as error:
         exit(error)
+
+    args.self_password = _get_password(f"[Enter password for {args.self_username}]\n> ")
+    if args.require_other_password:
+        args.other_password = _get_password(f"[Enter password for {args.other_username}]\n> ")
+
+    print(args)
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
             conn.connect(args.socket)

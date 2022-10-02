@@ -604,6 +604,10 @@ static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
                              (uint8_t **)&p_load->p_username,
                              p_load->username_len,
                              true);
+    if (OP_SUCCESS != result)
+    {
+        goto ret_null;
+    }
 
     // Only "Create user" commands have the password field filled
     if (user_payload_has_password(p_wire->payload_len, p_load->username_len))
@@ -613,6 +617,8 @@ static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
         {
             goto ret_null;
         }
+        p_load->passwd_len = htons(p_load->passwd_len);
+
         result = make_byte_array(p_ld,
                                  (uint8_t **)&p_load->p_passwd,
                                  p_load->passwd_len,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import getpass
 import struct
 from enum import Enum, auto, unique
 from pathlib import Path
@@ -75,7 +76,7 @@ class ClientRequest:
                  src: Optional[Path],
                  dst: Optional[str],
                  perm: Optional[UserPerm] = UserPerm.READ,
-                 session_id: Optional[int] = 0,
+                 session_id: int = 0,
                  **kwargs) -> None:
         """
         Create a "dataclass" containing the configuration and action required
@@ -99,7 +100,7 @@ class ClientRequest:
         self._username = username
         self._src = src
         self._dst = dst
-        self._perm = perm
+        self._perm = perm if perm else UserPerm.READ
         self._session_id = session_id
         self._password: str = ""
 
@@ -110,19 +111,60 @@ class ClientRequest:
         self._other_username: str = ""
         self._other_password: str = ""
 
+        self._debug: bool = kwargs.get("debug", False)
         self._parse_kwargs(kwargs)
+
+    def __str__(self) -> str:
+        if self._debug:
+            return (
+                f"[SELF]  {self._username:<25} {self._password}\n"
+                f"[OTHER] {self._other_username:<25} {self._other_password}\n"
+                f"[SRC]   {self._src}\n"
+                f"[DST]   {self._dst}\n"
+                f"[SESH]  {self._session_id}\n"
+                f"[ACT]   {self._action}\n"
+                f"[O_ACT] {self._user_flag}"
+            )
+        else:
+            return (
+                f"[SRC]   {self._src}\n"
+                f"[DST]   {self._dst}\n"
+                f"[SESH]  {self._session_id}\n"
+                f"[ACT]   {self._action}\n"
+                f"[O_ACT] {self._user_flag}"
+            )
+
+    @property
+    def require_other_password(self) -> bool:
+        return self._user_flag == ActionType.CREATE_USER
+
+    @property
+    def self_username(self) -> str:
+        return self._username
+
+    @property
+    def other_username(self) -> str:
+        return self._other_username
 
     @property
     def socket(self) -> tuple[str, int]:
         return self._host, self._port
 
     @property
-    def passwd(self) -> str:
+    def self_password(self) -> str:
         return self._password
 
-    @passwd.setter
-    def passwd(self, value: str) -> None:
+    @self_password.setter
+    def self_password(self, value: str) -> None:
         self._password = value
+
+    @property
+    def other_password(self) -> str:
+        return self._other_password
+
+    @other_password.setter
+    def other_password(self, value: str) -> None:
+        self._other_password = value
 
     @property
     def client_request(self):
@@ -150,7 +192,7 @@ class ClientRequest:
                                                self._user_flag.value,
                                                0,
                                                len(self._username),
-                                               len(self.passwd),
+                                               len(self.self_password),
                                                self._session_id,
                                                ))
         request_header += self._username.encode(encoding="utf-8")
@@ -172,7 +214,6 @@ class ClientRequest:
                                        self._perm.value,
                                        len(self._other_username)
                                        )
-
             user_payload += self._other_username.encode(encoding="utf-8")
 
             if 0 != len(self._other_password):
@@ -183,8 +224,6 @@ class ClientRequest:
             request_header += user_payload
 
         return request_header
-
-
 
     def _parse_kwargs(self, kwargs) -> None:
         """
@@ -201,8 +240,10 @@ class ClientRequest:
         """
         action = None
         for key, value in kwargs.items():
+            if key == "debug":
+                continue
             if value:
-                if key in ("create_user", "delete_use"):
+                if key in ("create_user", "delete_user"):
                     self._other_username = value
                 if action is not None:
                     raise ValueError("[!] Only one command flag may be set")
@@ -252,5 +293,3 @@ class ClientRequest:
         if self._action in (ActionType.L_LS, ActionType.L_MKDIR, ActionType.L_DELETE):
             self._user_flag = self._action
             self._action = ActionType.LOCAL_OP
-
-

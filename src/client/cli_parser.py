@@ -18,6 +18,9 @@ def get_args() -> ClientRequest:
                     "to perform file transfers between the client and server."
     )
 
+    parser.add_argument("--debug", dest="debug", action="store_true",
+                        help=argparse.SUPPRESS)
+
     parser.add_argument(
         "-i", "--server-ip", dest="host", default="127.0.0.1", metavar="[HOST]",
         help="Specify the address of the server. (Default: %(default)s)"
@@ -116,7 +119,12 @@ def get_args() -> ClientRequest:
         help="User perms"
     )
 
+    args = parser.parse_args()
+    if args.debug:
+        for k,v in vars(parser.parse_args()).items():
+            print(f"{k:<20}{v}")
+
     try:
-        return ClientRequest(**vars(parser.parse_args()))
+        return ClientRequest(**vars(args))
     except ValueError as error:
         parser.error(str(error))

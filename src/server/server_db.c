@@ -244,13 +244,16 @@ ret_codes_t db_create_user(db_t * p_db,
                            const char * passwd,
                            perms_t permission)
 {
-    if ((NULL == p_db)
-         || (NULL == username)
-         || (NULL == passwd)
-         || (strlen(passwd) > MAX_PASSWD_LEN)
-         || (strlen(passwd) < MIN_PASSWD_LEN)
-         || (strlen(username) > MAX_USERNAME_LEN)
-         || (strlen(username) < MIN_USERNAME_LEN)
+    if ((NULL == p_db) || (NULL == username) || (NULL == passwd))
+    {
+        debug_print_err("%s\n", "[!] Null values passed for user creation");
+        goto ret_null;
+    }
+
+    if ((strlen(passwd) > MAX_PASSWD_LEN)
+            || (strlen(passwd) < MIN_PASSWD_LEN)
+            || (strlen(username) > MAX_USERNAME_LEN)
+            || (strlen(username) < MIN_USERNAME_LEN)
     )
     {
         debug_print("[!] User creation:\n\tUsername: %s - size: "
