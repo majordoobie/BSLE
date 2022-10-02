@@ -13,6 +13,7 @@ static const char * OP_10 = "Path provided is not of type directory.";
 static const char * OP_11 = "Path provided is not of type regular file.";
 static const char * OP_12 = "Directory could not be created because it already exists";
 static const char * OP_13 = "Network socket is closed, cannot read or send anymore data";
+static const char * OP_14 = "User could not be removed because they do not exist";
 static const char * OP_254 = "I/O error occurred during the action. This could be due to permissions, file not existing, or error while writing and reading.";
 static const char * OP_255 = "Server action failed";
 
@@ -478,6 +479,8 @@ static const char * get_err_msg(ret_codes_t res)
             return OP_12;
         case OP_SOCK_CLOSED:
             return OP_13;
+        case OP_USER_NO_EXIST:
+            return OP_14;
         case OP_IO_ERROR:
             return OP_254;
         default:

@@ -53,19 +53,18 @@ void start_server(db_t * p_db, uint32_t port_num, uint8_t timeout)
         goto cleanup_sock;
     }
 
-
     // Set up SIGINT signal handling
-	struct sigaction signal_action;
-	memset(&signal_action, 0, sizeof(signal_action));
-	signal_action.sa_handler = signal_handler;
+    struct sigaction signal_action;
+    memset(&signal_action, 0, sizeof(signal_action));
+    signal_action.sa_handler = signal_handler;
 
-	// Make the system call to change the action taken by the process on receipt
-	// of the signal
-	if (-1 == (sigaction(SIGINT, &signal_action, NULL)))
-	{
+    // Make the system call to change the action taken by the process on receipt
+    // of the signal
+    if (-1 == (sigaction(SIGINT, &signal_action, NULL)))
+    {
         debug_print_err("%s\n", "Unable to set up signal handler");
         goto cleanup_thpool;
-	}
+    }
     if (-1 == (sigaction(SIGPIPE, &signal_action, NULL)))
     {
         fprintf(stderr , "Unable to set up signal handler\n");
@@ -107,8 +106,7 @@ void start_server(db_t * p_db, uint32_t port_num, uint8_t timeout)
             else
             {
                 *w_pld = (worker_payload_t){
-                    //TODO CHANGE THIS
-                    .timeout    = 5000,
+                    .timeout    = timeout,
                     .fd         = client_fd,
                     .p_db       = p_db,
                 };

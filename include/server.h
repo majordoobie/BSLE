@@ -58,6 +58,7 @@ typedef enum
     OP_PATH_NOT_FILE       = 11,
     OP_DIR_EXISTS          = 12,
     OP_SOCK_CLOSED         = 13,
+    OP_USER_NO_EXIST       = 14,
     OP_IO_ERROR            = 254,
     OP_FAILURE             = 255
 } ret_codes_t;

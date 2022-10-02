@@ -208,7 +208,7 @@ ret_codes_t db_remove_user(db_t * p_db, const char * username)
     user_account_t * p_user = (user_account_t *)htable_del(p_db->users_htable, (void *)username, HT_FREE_PTR_FALSE);
     if (NULL == p_user)
     {
-        return OP_USER_EXISTS;
+        return OP_USER_NO_EXIST;
     }
 
     free(p_user->p_username);
