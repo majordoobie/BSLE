@@ -14,6 +14,7 @@ static const char * OP_11 = "Path provided is not of type regular file.";
 static const char * OP_12 = "Directory could not be created because it already exists";
 static const char * OP_13 = "Network socket is closed, cannot read or send anymore data";
 static const char * OP_14 = "User could not be removed because they do not exist";
+static const char * OP_15 = "File request exists but it is empty";
 static const char * OP_254 = "I/O error occurred during the action. This could be due to permissions, file not existing, or error while writing and reading.";
 static const char * OP_255 = "Server action failed";
 
@@ -212,8 +213,18 @@ static void do_get_file(db_t * p_db, wire_payload_t * p_ld, act_resp_t ** pp_res
         return;
     }
 
-    set_resp(pp_resp, OP_SUCCESS);
-    (*pp_resp)->p_content = p_content;
+    if (0 == p_content->stream_size)
+    {
+        f_destroy_content(&p_content);
+        set_resp(pp_resp, OP_FILE_EMPTY);
+    }
+    else
+    {
+        debug_print("[~] Read %ld from %s\n", p_content->stream_size, p_content->p_path);
+        set_resp(pp_resp, OP_SUCCESS);
+        (*pp_resp)->p_content = p_content;
+    }
+
     return;
 }
 
@@ -246,6 +257,8 @@ static void do_list_dir(db_t * p_db,
         set_resp(pp_resp, code);
         return;
     }
+    debug_print("[~] Read dir listing of %ld from %s\n",
+                p_content->stream_size, p_content->p_path);
 
     set_resp(pp_resp, OP_SUCCESS);
     (*pp_resp)->p_content = p_content;
@@ -277,6 +290,9 @@ static ret_codes_t do_put_file(db_t * p_db, wire_payload_t * p_ld)
     ret_codes_t ret = f_write_file(p_path,
                                    p_std->p_byte_stream,
                                    p_std->byte_stream_len);
+
+    debug_print("[~] Wrote %ld to %s\n", p_std->byte_stream_len, p_std->p_path);
+
     f_destroy_path(&p_path);
     return ret;
 
@@ -298,6 +314,12 @@ static ret_codes_t do_make_dir(db_t * p_db, wire_payload_t * p_ld)
         return OP_RESOLVE_ERROR;
     }
     ret_codes_t ret = f_create_dir(p_path);
+    if (OP_SUCCESS == ret)
+    {
+        char repr[PATH_MAX] = {0};
+        f_path_repr(p_path, repr, PATH_MAX);
+        debug_print("[~] Created %s\n", repr);
+    }
     f_destroy_path(&p_path);
     return ret;
 }
@@ -318,6 +340,12 @@ static ret_codes_t do_del_file(db_t * p_db, wire_payload_t * p_ld)
         return OP_RESOLVE_ERROR;
     }
     ret_codes_t ret = f_del_file(p_path);
+    if (OP_SUCCESS == ret)
+    {
+        char repr[PATH_MAX] = {0};
+        f_path_repr(p_path, repr, PATH_MAX);
+        debug_print("[~] Deleted %s\n", repr);
+    }
     f_destroy_path(&p_path);
     return ret;
 }
@@ -481,6 +509,8 @@ static const char * get_err_msg(ret_codes_t res)
             return OP_13;
         case OP_USER_NO_EXIST:
             return OP_14;
+        case OP_FILE_EMPTY:
+            return OP_15;
         case OP_IO_ERROR:
             return OP_254;
         default:

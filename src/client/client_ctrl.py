@@ -31,7 +31,6 @@ def _do_list_ldir(args: ClientRequest) -> None:
         if file.is_file() or file.is_dir():
             _type = "[F]" if file.is_file() else "[D]"
             contents += f"{_type}:{file.stat().st_size}:{file.name}\n"
-
     _parse_dir(contents)
 
 
@@ -42,6 +41,12 @@ def _parse_dir(array: Union[str, bytes]) -> None:
 
     :param array: String array in the format of `f_type:f_size:f_name\n`
     """
+
+    if not array:
+        print("[!] Directory is empty")
+        return
+    print("has stuff")
+
     if isinstance(array, bytes):
         array = array.decode(encoding="utf-8")
 
@@ -97,8 +102,20 @@ def parse_action(resp: ServerResponse) -> None:
         if resp.valid_hash:
             _parse_dir(resp.payload)
 
+    elif resp.action in [ActionType.MKDIR, ActionType.PUT, ActionType.DELETE]:
+        print(f"[+] {resp.msg}")
+
+    elif ActionType.GET == resp.action:
+        print(f"[~] {resp.save_file()}")
+
     elif ActionType.L_LS == resp.action:
         _do_list_ldir(resp.request)
+
+    elif ActionType.L_MKDIR == resp.action:
+        _do_lmkdir(resp.request)
+
+    elif ActionType.L_DELETE == resp.action:
+        _do_ldelete(resp.request)
 
 
 

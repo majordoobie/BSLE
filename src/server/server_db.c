@@ -741,8 +741,9 @@ ret_null:
  */
 static verified_path_t * update_db_hash(verified_path_t * p_home_dir, verified_path_t * p_db_file)
 {
-    FILE * h_db_file = f_open_file(p_db_file, "r");
-    if (NULL == h_db_file)
+    FILE * h_db_file = NULL;
+    ret_codes_t result = f_open_file(p_db_file, "r", &h_db_file);
+    if (OP_SUCCESS != result)
     {
         fprintf(stderr, "[!] Could not open the database file "
                         "in %s/%s you may have to create it yourself\n",
@@ -796,8 +797,9 @@ static verified_path_t * update_db_hash(verified_path_t * p_home_dir, verified_p
     }
 
     // Open a handle the hash file to write the contents to
-    FILE * h_hash_file = f_open_file(p_hash_file, "w");
-    if (NULL == h_hash_file) // Message printed already
+    FILE * h_hash_file = NULL;
+    result = f_open_file(p_hash_file, "w", &h_hash_file);
+    if (OP_SUCCESS != result) // Message printed already
     {
         goto cleanup_hash_file;
     }

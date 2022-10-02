@@ -261,12 +261,20 @@ class ClientRequest:
                |                     **FILE_DATA_STREAM**                      |
                +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
             """
-            std_payload = struct.pack("!H", len(self._dst))
-            std_payload += self._dst.encode(encoding="utf-8")
+            if ActionType.PUT == self._action:
+                path = (Path(self._dst) / self._src.name).as_posix()
+            else:
+                path = self._dst
+            std_payload = struct.pack("!H", len(path))
+            std_payload += path.encode(encoding="utf-8")
             if ActionType.PUT == self._action:
                 try:
-                    with self._src.open("rb", encoding="utf-8") as handle:
-                        std_payload += handle.read()
+                    with self._src.open("rb") as handle:
+                        _payload = handle.read()
+                    hash_digest = _hash(_payload)
+                    std_payload += hash_digest
+                    std_payload += _payload
+
                 except Exception:
                     raise
 
@@ -346,6 +354,28 @@ class ClientRequest:
             self._user_flag = self._action
             self._action = ActionType.LOCAL_OP
 
+        if ActionType.GET == self._action:
+            if not self._src.is_dir():
+                raise FileExistsError("Path provided must be a directory")
+
+            filename = Path(self._dst).name
+            path = self._src / filename
+            if path.exists():
+                raise FileExistsError(f"File {path.as_posix()} already exists")
+            self._get_path = path
+
+    def save_file(self, payload: bytes) -> str:
+
+        try:
+            with self._get_path.open("wb") as handle:
+                for chunk in _chunker(payload, len(payload)):
+                    handle.write(chunk)
+            return f"Wrote {self._get_path.stat().st_size} bytes to " \
+                   f"{self._get_path.as_posix()}"
+
+        except Exception as error:
+            return str(error)
+
 
 @dataclass
 class ServerResponse:
@@ -362,6 +392,12 @@ class ServerResponse:
     def __str__(self):
         return f"{self.msg}"
 
+    def save_file(self) -> str:
+        if not self.valid_hash:
+            return ("Files hash from server does not match the local hash. "
+                    "Will not save the file to disk.")
+        return self.request.save_file(self.payload)
+
     @property
     def action(self) -> ActionType:
         if ActionType.LOCAL_OP == self.request.action:
@@ -374,19 +410,19 @@ class ServerResponse:
 
     @property
     def valid_hash(self) -> bool:
-        return self.digest == self._hash()
+        if self.digest is None:
+            return False
 
-    def _chunker(self) -> bytes:
-        size = 1024
-        for pos in range(0, len(self.payload), size):
-            yield self.payload[pos: pos + size]
-
-    def _hash(self) -> bytes:
-        sha256_hash = hashlib.sha256()
-        for chunk in self._chunker():
-            sha256_hash.update(chunk)
-        return sha256_hash.digest()
+        return self.digest == _hash(self.payload)
 
 
+def _chunker(payload: bytes, size: int) -> bytes:
+    for pos in range(0, len(payload), size):
+        yield payload[pos: pos + size]
 
 
+def _hash(payload: bytes, size: int = 1024) -> bytes:
+    sha256_hash = hashlib.sha256()
+    for chunk in _chunker(payload, size):
+        sha256_hash.update(chunk)
+    return sha256_hash.digest()

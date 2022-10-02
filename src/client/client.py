@@ -25,7 +25,7 @@ def main() -> None:
     try:
         args = cli_parser.get_args()
     except Exception as error:
-        exit(error)
+        exit(f"[!] {error}")
 
     args.self_password = _get_password(f"[Enter password for {args.self_username}]\n> ")
     if args.require_other_password:

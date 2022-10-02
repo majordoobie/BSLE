@@ -83,6 +83,10 @@ def get_args() -> ClientRequest:
              "invoked by users with CREATE_RW permissions."
     )
 
+    remote_commands.add_argument(
+        "--get", dest="get", action="store_true",
+        help="Copy file from server directory to client directory.")
+
     #
     # Local commands
     #
@@ -128,4 +132,4 @@ def get_args() -> ClientRequest:
     try:
         return ClientRequest(**vars(args))
     except ValueError as error:
-        parser.error(str(error))
+        parser.error(f"[!] {str(error)}")

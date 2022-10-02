@@ -83,7 +83,8 @@ TEST_P(ServerFileApiTest, TestFileJoining)
             EXPECT_EQ(0, strcmp(expected_str.c_str(), p_path->p_path));
 
 
-            FILE * h_file = f_open_file(p_path, "r");
+            FILE * h_file = NULL;
+            f_open_file(p_path, "r", &h_file);
 
             if (expect_find)
             {

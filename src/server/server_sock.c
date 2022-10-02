@@ -935,7 +935,7 @@ static bool std_payload_has_file(uint64_t payload_len, uint16_t path_len)
  */
 static uint64_t get_file_stream_size(uint64_t payload_len, uint16_t path_len)
 {
-    uint32_t r_operand = path_len + H_HASH_LEN;
+    uint32_t r_operand = path_len + H_HASH_LEN + H_PATH_LEN;
     if (payload_len < r_operand)
     {
         return 0;
