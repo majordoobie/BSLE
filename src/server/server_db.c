@@ -380,9 +380,14 @@ ret_codes_t db_authenticate_user(db_t * p_db,
                                  const char * username,
                                  const char * passwd)
 {
-    if ((p_db == NULL) || (NULL == username) || (NULL == passwd))
+    if ((p_db == NULL) || (NULL == username))
     {
         return OP_FAILURE;
+    }
+
+    if (NULL == passwd)
+    {
+        return OP_USER_AUTH;
     }
 
     *pp_user = (user_account_t *)htable_get(p_db->users_htable, (void *)username);
