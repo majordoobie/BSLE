@@ -715,7 +715,9 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
     memcpy((p_stream + offset), &session_id, H_SESSION_ID);
     offset += H_SESSION_ID;
 
+    printf("%ld\n", payload_len);
     uint64_t pld_size = htonll(payload_len);
+    printf("%ld\n", pld_size);
     memcpy((p_stream + offset), &pld_size, H_PAYLOAD_LEN);
     offset += H_PAYLOAD_LEN;
 
@@ -956,7 +958,7 @@ static ret_codes_t make_byte_array(worker_payload_t * p_ld,
                                    uint64_t array_len,
                                    bool make_string)
 {
-    if (0 == array_len)
+    if ((0 == array_len) && (false == make_string))
     {
         return OP_SUCCESS;
     }

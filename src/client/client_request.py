@@ -216,7 +216,7 @@ class ClientRequest:
                                        )
             user_payload += self._other_username.encode(encoding="utf-8")
 
-            if 0 != len(self._other_password):
+            if ActionType.CREATE_USER == self._user_flag:
                 user_payload += struct.pack("!H", len(self._other_password))
                 user_payload += self._other_password.encode("utf-8")
 

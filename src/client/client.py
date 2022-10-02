@@ -2,10 +2,11 @@ import getpass
 import struct
 from dataclasses import dataclass
 import socket
-from time import sleep
+from typing import Union
 
 from client_request import ClientRequest, ActionType
 import cli_parser
+import client_sock
 
 
 @dataclass
@@ -38,13 +39,16 @@ def _do_list_ldir(args: ClientRequest) -> None:
     _parse_dir(contents)
 
 
-def _parse_dir(array: str) -> None:
+def _parse_dir(array: Union[str, bytes]) -> None:
     """
     Break the stream of characters that represents the directory listing
     and format it to print to the screen.
 
     :param array: String array in the format of `f_type:f_size:f_name\n`
     """
+    if isinstance(array, bytes):
+        array = array.decode(encoding="utf-8")
+
     dir_objs = []
     for file in array.split("\n"):
         if "" == file:
@@ -111,16 +115,11 @@ def main() -> None:
     args.self_password = _get_password(f"[Enter password for {args.self_username}]\n> ")
     if args.require_other_password:
         args.other_password = _get_password(f"[Enter password for {args.other_username}]\n> ")
+
     print(args)
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
-            conn.connect(args.socket)
-            conn.send(args.client_request)
+    client_sock.make_connection(args)
 
-            v = conn.recv(1024)
-            print(v)
-            v = conn.recv(1024)
-            print(v)
 
     if ActionType.L_LS == args._action:
         _do_list_ldir(args)

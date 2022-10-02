@@ -118,7 +118,7 @@ class DBUserActions : public ::testing::Test
 
         std_payload_t * usr_payload3 = (std_payload_t *)calloc(1, sizeof(std_payload_t));
         usr_payload3->p_path = strdup(file1.filename().c_str());
-        usr_payload3->path_len = strlen(file1.filename().c_str());
+        usr_payload3->path_len = (uint16_t)strlen(file1.filename().c_str());
 
         std::ifstream infile(file1, std::ios::binary);
         infile.seekg(0, std::ios::end);
@@ -142,7 +142,7 @@ class DBUserActions : public ::testing::Test
 
         std_payload_t * usr_payload4 = (std_payload_t *)calloc(1, sizeof(std_payload_t));
         usr_payload4->p_path = strdup(file1.filename().c_str());
-        usr_payload4->path_len = strlen(file1.filename().c_str());
+        usr_payload4->path_len = (uint16_t)strlen(file1.filename().c_str());
 
         std::ifstream infile2(file1, std::ios::binary);
         infile2.seekg(0, std::ios::end);
@@ -336,7 +336,7 @@ TEST_F(DBUserActions, TestUserAction_ListDirectoryError)
     this->payload3->opt_code = ACT_LIST_REMOTE_DIRECTORY;
     free(this->payload3->p_std_payload->p_path);
     this->payload3->p_std_payload->p_path = strdup(file1.filename().c_str());
-    this->payload3->p_std_payload->path_len = strlen(file1.filename().c_str());
+    this->payload3->p_std_payload->path_len = (uint16_t)strlen(file1.filename().c_str());
 
     act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3);
     ASSERT_NE(resp, nullptr);
