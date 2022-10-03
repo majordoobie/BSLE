@@ -43,12 +43,47 @@ def _parse_args(args: list[str]) -> dict:
                                  f"`help {cmd_name}` for more information")
     return arg_dict
 
+
 def _get(client: ClientRequest, conn: socket, args: list[str]) -> None:
-    pass
+    try:
+        cmd_args = _parse_args(args)
+    except ValueError as error:
+        print(error)
+        return
+
+    dst = cmd_args.get("r_dst")
+    src = cmd_args.get("r_src")
+    client.set_get(dst, Path(src))
+    resp = client_sock.connect(client, conn)
+    client_ctrl.parse_action(resp)
+
+
 def _put(client: ClientRequest, conn: socket, args: list[str]) -> None:
-    pass
+    try:
+        cmd_args = _parse_args(args)
+    except ValueError as error:
+        print(error)
+        return
+
+    dst = cmd_args.get("r_dst")
+    src = cmd_args.get("r_src")
+    client.set_put(dst, Path(src))
+    resp = client_sock.connect(client, conn)
+    client_ctrl.parse_action(resp)
+
+
 def _delete(client: ClientRequest, conn: socket, args: list[str]) -> None:
-    pass
+    try:
+        cmd_args = _parse_args(args)
+    except ValueError as error:
+        print(error)
+        return
+
+    dst = cmd_args.get("r_dst")
+    client.set_delete(dst)
+    resp = client_sock.connect(client, conn)
+    client_ctrl.parse_action(resp)
+
 
 def _l_delete(client: ClientRequest, conn: socket, args: list[str]) -> None:
     try:
@@ -87,8 +122,18 @@ def _l_ls(client: ClientRequest, conn: socket, args: list[str]) -> None:
     client.set_locals(src)
     client_ctrl.do_list_ldir(client)
 
+
 def _mkdir(client: ClientRequest, conn: socket, args: list[str]) -> None:
-    pass
+    try:
+        cmd_args = _parse_args(args)
+    except ValueError as error:
+        print(error)
+        return
+
+    dst = cmd_args.get("r_dst")
+    client.set_mkdir(dst)
+    resp = client_sock.connect(client, conn)
+    client_ctrl.parse_action(resp)
 
 
 def _l_mkdir(client: ClientRequest, conn: socket, args: list[str]) -> None:
@@ -154,7 +199,7 @@ def _quit(client: ClientRequest, conn: socket, args: list[str]) -> None:
 def _print_main_menu() -> None:
     print("Help menu...")
     for cmd_name, cmd in CMDS.items():
-        print(f"{cmd_name:<10}{cmd.get('help')}")
+        print(f"{f'{cmd_name}:':<10}{cmd.get('help')}\n")
     print("\n")
 
 
@@ -169,8 +214,8 @@ def _interact(client: ClientRequest, conn: socket) -> None:
         if cmd:
             cmd[0] = cmd[0].lower()
             if not CMDS.get(cmd[0]):
-                print("[!] Invalid cmd. User \"help\" if you "
-                      "need guidance")
+                print("[!] Invalid command. Use \"help\" for a list of "
+                      "commands.")
             else:
                 callback = CMDS.get(cmd[0])
                 callback.get("callback")(client, conn, cmd)
@@ -192,6 +237,8 @@ def shell(client: ClientRequest) -> None:
         except TimeoutError:
             client.session = 0
             pass
+        except KeyboardInterrupt:
+            exit("later")
 
 
 ARGS = {
@@ -202,13 +249,13 @@ ARGS = {
 CMDS = {
     "get": {
         "help": "Gets a file from server [dst] path and copies it into the "
-                "client [src] path\nExample: get remote/file.txt local/dir",
+                "client [src] path\n\t  Example: get remote/file.txt local/dir",
         "args": ["r_dst", "r_src"],
         "callback": _get,
     },
     "put": {
         "help": "Sends a file from client [src] path to be placed in the "
-                "server [dst] path. \nExample: put source_file.txt dest/folder",
+                "server [dst] path.\n\t  Example: put source_file.txt dest/folder",
         "args": ["r_src", "r_dst"],
         "callback": _put,
     },

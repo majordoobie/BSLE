@@ -205,11 +205,45 @@ class ClientRequest:
         self._reset_state()
         self._src = src
 
+    def set_get(self, dst: str, src: Path) -> None:
+        """Method is used for interactive mode"""
+        self._reset_state()
+        self._dst = dst
+        self._src = src
+        self._action = ActionType.GET
+        if not self._src.is_dir():
+            raise FileExistsError("Path provided must be a directory")
+
+        filename = Path(self._dst).name
+        path = self._src / filename
+        if path.exists():
+            raise FileExistsError(f"File {path.as_posix()} already exists")
+        self._get_path = path
+
+    def set_put(self, dst: str, src: Path) -> None:
+        """Method is used for interactive mode"""
+        self._reset_state()
+        self._dst = dst
+        self._src = src
+        self._action = ActionType.PUT
+
+    def set_delete(self, dst: str) -> None:
+        """Method is used for interactive mode"""
+        self._reset_state()
+        self._dst = dst
+        self._action = ActionType.DELETE
+
     def set_ls(self, dst: str) -> None:
         """Method is used for interactive mode"""
         self._reset_state()
         self._dst = dst
         self._action = ActionType.LS
+
+    def set_mkdir(self, dst: str) -> None:
+        """Method is used for interactive mode"""
+        self._reset_state()
+        self._dst = dst
+        self._action = ActionType.MKDIR
 
     def _reset_state(self) -> None:
         """Method is used for interactive mode"""
@@ -400,7 +434,6 @@ class ClientRequest:
             self._get_path = path
 
     def save_file(self, payload: bytes) -> str:
-
         try:
             with self._get_path.open("wb") as handle:
                 for chunk in _chunker(payload, len(payload)):
@@ -432,6 +465,7 @@ class ServerResponse:
         if not self.valid_hash:
             return ("Files hash from server does not match the local hash. "
                     "Will not save the file to disk.")
+        print("here big boi")
         return self.request.save_file(self.payload)
 
     @property

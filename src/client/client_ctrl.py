@@ -98,6 +98,7 @@ def parse_action(resp: ServerResponse) -> None:
         print(f"[!] {resp.msg}")
         if SESSION_ERROR == resp.return_code:
             raise TimeoutError("Session has expired")
+        return
 
     if ActionType.LS == resp.action:
         if resp.valid_hash:

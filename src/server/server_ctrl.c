@@ -80,18 +80,20 @@ act_resp_t * ctrl_parse_action(db_t * p_db,
     // Authenticate the user
     user_account_t * p_user = NULL;
     ret_codes_t res;
+    res = db_authenticate_user(p_db,
+                               &p_user,
+                               p_client_req->p_username,
+                               p_client_req->p_passwd);
+    if (OP_SUCCESS != res)
+    {
+        goto set_resp;
+    }
+
     // The session is brand new, attempt to authenticate and generate session
     if ((0 == p_client_req->session_id) && (0 == *srv_session))
     {
-        res = db_authenticate_user(p_db,
-                                   &p_user,
-                                   p_client_req->p_username,
-                                   p_client_req->p_passwd);
-        if (OP_SUCCESS == res)
-        {
-            res = generate_session_id(p_db->sesh_htable, srv_session);
-            p_client_req->session_id = *srv_session;
-        }
+        res = generate_session_id(p_db->sesh_htable, srv_session);
+        p_client_req->session_id = *srv_session;
     }
     // client did not use session, return an invalid session error
     else if((0 == p_client_req->session_id) && (0 != *srv_session))
@@ -120,11 +122,7 @@ act_resp_t * ctrl_parse_action(db_t * p_db,
     // If the user authentication failed, return the error code for it
     if (OP_SUCCESS != res)
     {
-        *p_resp = (act_resp_t){
-            .msg    = get_err_msg(res),
-            .result = res
-        };
-        goto ret_resp;
+        goto set_resp;
     }
 
     // Check operations from most to least exclusive
@@ -217,6 +215,11 @@ act_resp_t * ctrl_parse_action(db_t * p_db,
         }
     }
 
+set_resp:
+    *p_resp = (act_resp_t){
+        .msg    = get_err_msg(res),
+        .result = res
+    };
 ret_resp:
     return p_resp;
 ret_null:
