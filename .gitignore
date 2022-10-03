@@ -1,0 +1,8 @@
+cmake-build*
+build/
+.DS_Store
+.idea
+bin/
+*__pycache__*
+test/server
+test/client
