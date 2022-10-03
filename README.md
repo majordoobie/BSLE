@@ -144,3 +144,33 @@ To indicate that there is a password field (Only occurs during user creation)
    |                    **FILE_DATA_STREAM**                       |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
+
+```c
+typedef struct
+{
+    db_t * p_db;
+    uint32_t timeout;
+    uint32_t session_id; // Maintains the session through the whole connection per thread
+    int fd;
+} worker_payload_t;
+
+typedef struct
+{
+    act_t           opt_code;       // 1 byte
+    usr_act_t       user_flag;      // 1 byte
+    uint16_t        _reserved;
+    uint16_t        username_len;
+    uint16_t        passwd_len;
+    uint32_t        session_id;
+    char *          p_username;
+    char *          p_passwd;
+    uint64_t        payload_len;  // Size of everything but wire header
+
+    payload_type_t type;
+    union
+    {
+        std_payload_t *  p_std_payload;
+        user_payload_t * p_user_payload;
+    };
+} wire_payload_t;
+```

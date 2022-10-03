@@ -1,6 +1,6 @@
 import socket
 import struct
-from typing import Union
+from typing import Union, Optional
 import contextlib
 
 from client_classes import ClientRequest, RespHeader, ServerResponse, SUCCESS_RESPONSE
@@ -26,28 +26,33 @@ def _read_stream(conn: socket, size: Union[int, RespHeader], debug: bool = False
 
     return buffer
 
-
-def _socket_timedout(conn: socket.socket):
-    i = conn.recv(1, socket.MSG_PEEK)
-    payload = struct.unpack(">B", i)
-    print("The timout func read ", payload)
-    if i[0] == 2:
-        return True
-    return False
+# def _socket_timeout(conn: socket.socket):
+#     i = conn.recv(1, socket.MSG_PEEK)
+#     payload = struct.unpack(">B", i)
+#     if i[0] == 2:
+#         return True
+#     return False
 
 
-def connect(args: ClientRequest, conn: socket) -> ServerResponse:
-    conn.send(args.client_request)
+def connect(client: ClientRequest, conn: socket) -> ServerResponse:
+    """
+    Use the connected socket to send a ClientRequest
 
-    return_code = _read_stream(conn, RespHeader.RETURN_CODE, args.debug)
-    reserved = _read_stream(conn, RespHeader.RESERVED, args.debug)
-    session_id = _read_stream(conn, RespHeader.SESSION_ID, args.debug)
-    payload_len = _read_stream(conn, RespHeader.PAYLOAD_LEN, args.debug)
-    msg_len = _read_stream(conn, RespHeader.MSG_LEN, args.debug)
-    msg = _read_stream(conn, msg_len, args.debug).decode(encoding="utf-8")
+    :param client: ClientRequest object with connection information
+    :param conn: Connected socket
+    :return: Response from server
+    """
+    conn.send(client.client_request)
+
+    return_code = _read_stream(conn, RespHeader.RETURN_CODE, client.debug)
+    reserved = _read_stream(conn, RespHeader.RESERVED, client.debug)
+    session_id = _read_stream(conn, RespHeader.SESSION_ID, client.debug)
+    payload_len = _read_stream(conn, RespHeader.PAYLOAD_LEN, client.debug)
+    msg_len = _read_stream(conn, RespHeader.MSG_LEN, client.debug)
+    msg = _read_stream(conn, msg_len, client.debug).decode(encoding="utf-8")
 
     # Create the server response object
-    resp = ServerResponse(args,
+    resp = ServerResponse(client,
                           return_code,
                           reserved,
                           session_id,
@@ -66,12 +71,14 @@ def connect(args: ClientRequest, conn: socket) -> ServerResponse:
         if stream_size > 0:
             resp.digest = _read_stream(conn,
                                        RespHeader.SHA256DIGEST,
-                                       args.debug)
-            resp.payload = _read_stream(conn, stream_size, args.debug)
+                                       client.debug)
+            resp.payload = _read_stream(conn, stream_size, client.debug)
 
     # Needed to make a new line for the byte stream output
-    if args.debug:
+    if client.debug:
         print("\n")
+
+    client.session = resp.session_id
     return resp
 
 

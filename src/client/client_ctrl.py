@@ -4,6 +4,8 @@ from typing import Union
 from client_classes import ClientRequest, ActionType
 from client_sock import ServerResponse
 
+SESSION_ERROR = 2
+
 
 @dataclass
 class DirList:
@@ -94,7 +96,8 @@ def do_ldelete(args: ClientRequest) -> None:
 def parse_action(resp: ServerResponse) -> None:
     if not resp.successful:
         print(f"[!] {resp.msg}")
-        return
+        if SESSION_ERROR == resp.return_code:
+            raise TimeoutError("Session has expired")
 
     if ActionType.LS == resp.action:
         if resp.valid_hash:

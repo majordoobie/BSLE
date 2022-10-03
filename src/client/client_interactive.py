@@ -62,7 +62,17 @@ def _l_delete(client: ClientRequest, conn: socket, args: list[str]) -> None:
 
 
 def _ls(client: ClientRequest, conn: socket, args: list[str]) -> None:
-    pass
+    try:
+        cmd_args = _parse_args(args)
+    except ValueError as error:
+        print(error)
+        return
+
+    dst = cmd_args.get("dst")
+    dst = dst if dst else "/"
+    client.set_ls(dst)
+    resp = client_sock.connect(client, conn)
+    client_ctrl.parse_action(resp)
 
 
 def _l_ls(client: ClientRequest, conn: socket, args: list[str]) -> None:
@@ -91,6 +101,7 @@ def _l_mkdir(client: ClientRequest, conn: socket, args: list[str]) -> None:
     src = Path(cmd_args.get("r_src"))
     client.set_locals(src)
     client_ctrl.do_lmkdir(client)
+    return
 
 
 def _help(client: ClientRequest, conn: socket, args: list[str]) -> None:
@@ -151,39 +162,36 @@ def get_password(msg: str) -> str:
     return getpass.getpass(msg)
 
 
-def _authenticate(main: ClientRequest) -> None:
-    main.set_auth_headers()
-    resp = client_sock.make_connection(main)
-    if resp.successful:
-        main.session = resp.session_id
-        print("[+] Welcome back!\n")
-        return
-    exit(f"[!] {resp.msg}")
+def _interact(client: ClientRequest, conn: socket) -> None:
+    _print_main_menu()
+    while True:
+        cmd = shlex.split(input("\n> "))
+        if cmd:
+            cmd[0] = cmd[0].lower()
+            if not CMDS.get(cmd[0]):
+                print("[!] Invalid cmd. User \"help\" if you "
+                      "need guidance")
+            else:
+                callback = CMDS.get(cmd[0])
+                callback.get("callback")(client, conn, cmd)
+        else:
+            print()
 
 
 def shell(client: ClientRequest) -> None:
-    client.self_password = get_password("password: ")
-    client.set_auth_headers()
-    with client_sock.connection(client) as conn:
-        resp = client_sock.connect(client, conn)
-        if not resp.successful:
-            exit(f"[!] {resp.msg}")
-
-        client.session = resp.session_id
-        print("[+] Welcome back!\n")
-        _print_main_menu()
-        run = True
-        while run:
-            cmd = shlex.split(input("\n> "))
-            if cmd:
-                cmd[0] = cmd[0].lower()
-                if not CMDS.get(cmd[0]):
-                    print("[!] Invalid cmd. User \"help\" if you need guidance")
-                else:
-                    callback = CMDS.get(cmd[0])
-                    callback.get("callback")(client, conn, cmd)
-            else:
-                print()
+    while True:
+        client.self_password = get_password("password: ")
+        client.set_auth_headers()
+        try:
+            with client_sock.connection(client) as conn:
+                resp = client_sock.connect(client, conn)
+                if not resp.successful:
+                    exit(f"[!] {resp.msg}")
+                client.session = resp.session_id
+                _interact(client, conn)
+        except TimeoutError:
+            client.session = 0
+            pass
 
 
 ARGS = {

@@ -15,12 +15,11 @@ typedef enum
     MIN_USERNAME_LEN    = 3,
     MIN_PASSWD_LEN      = 6,
     MAX_PASSWD_LEN      = 32,
-    MAX_WIRE_HEADER     = 64,
     MAX_MSG_SIZE        = 2048,
     MAX_FILE_SIZE       = 1016,
     DEFAULT_PORT        = 31337,
     DEFAULT_TIMEOUT     = 10,
-    MAX_TIMEOUT         = 60,     // Max timeout of a minute
+    MAX_TIMEOUT         = 120,     // Max timeout of 2 minutes
 } server_defaults_t;
 
 // header_sizes_t defines the amount of bytes that the field takes in the

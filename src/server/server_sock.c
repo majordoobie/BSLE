@@ -21,8 +21,7 @@ static void destroy_worker_pld(worker_payload_t ** pp_ld);
 static ret_codes_t read_client_req(worker_payload_t * p_ld,
                                    wire_payload_t ** pp_wire);
 static ret_codes_t read_stream(int fd, void * payload, size_t bytes_to_read);
-static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp);
-static uint32_t generate_session_id(void);
+static void write_response(worker_payload_t * p_worker, act_resp_t * p_resp);
 
 // Readability functions
 static bool std_payload_has_file(uint64_t payload_len, uint16_t path_len);
@@ -282,13 +281,13 @@ static int server_listen(uint32_t serv_port, socklen_t * record_len)
  */
 static void serve_client(void * sock_void)
 {
-    worker_payload_t * p_ld = (worker_payload_t *)sock_void;
+    worker_payload_t * p_worker = (worker_payload_t *)sock_void;
     struct timeval tv;
     tv.tv_usec = 0;
-    tv.tv_sec = p_ld->timeout;
+    tv.tv_sec = p_worker->timeout;
 
     int str_err = setsockopt(
-        p_ld->fd,
+        p_worker->fd,
         SOL_SOCKET,
         SO_RCVTIMEO,
         (const char*)&tv,
@@ -310,18 +309,17 @@ static void serve_client(void * sock_void)
     ret_codes_t result = OP_SUCCESS;
     while (OP_SUCCESS == result)
     {
-        result = read_client_req(p_ld, &p_wire);
+        // p_wire->session_id will receive the session_id from the
+        // client connection. On initial connection, the session is set
+        // to zero from the client and p_worker->session_id will also be 0.
+        result = read_client_req(p_worker, &p_wire);
         if (OP_SUCCESS != result)
         {
             goto ret_null;
         }
 
-        if (0 == p_wire->session_id)
-        {
-            p_wire->session_id = generate_session_id();
-        }
-        act_resp_t * resp = ctrl_parse_action(p_ld->p_db, p_wire);
-        write_response(p_ld, resp);
+        act_resp_t * resp = ctrl_parse_action(p_worker->p_db, p_wire, &p_worker->session_id);
+        write_response(p_worker, resp);
 
         // Last value "false" instructs the destroy function to completely
         // clean out the p_wire object but do not free it so that we
@@ -333,7 +331,7 @@ static void serve_client(void * sock_void)
 
 
 ret_null:
-    destroy_worker_pld(&p_ld);
+    destroy_worker_pld(&p_worker);
     return;
 }
 
@@ -568,11 +566,13 @@ static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
     }
 
     debug_print("[~] Parsed std payload:\n"
+                "    [~]    Session ID: %u\n"
                 "    [~]    Command:   %s\n"
                 "    [~]    PATH_LEN:  %d\n"
                 "    [~]    PATH_NAME: %s\n"
                 "    [~]    PATH_LEN:  %d\n"
                 "    [~]    FileLen:   %ld\n",
+                p_wire->session_id,
                 action_to_string(p_wire->opt_code),
                 p_load->path_len,
                 p_load->p_path,
@@ -653,10 +653,12 @@ static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
                                  true);
     }
     debug_print("[~] Parsed user payload:\n"
-           "[~]    USER_OP: %s\n"
-           "[~]    O_PERM:  %d\n"
-           "[~]    O_User:  %s\n"
-           "[~]    O_Pass:  %s\n",
+                "    [~]    Session ID: %u\n"
+                "    [~]    USER_OP: %s\n"
+                "    [~]    O_PERM:  %d\n"
+                "    [~]    O_User:  %s\n"
+                "    [~]    O_Pass:  %s\n",
+           p_wire->session_id,
            (USR_ACT_CREATE_USER == p_load->user_flag) ? "CREATE" : "DELETE",
            p_load->user_perm,
            p_load->p_username,
@@ -678,12 +680,12 @@ ret_null:
  * LS command and GET command holding that data stream to return in the
  * format for (BYTE_STREAM_HASH)(BYTE_STREAM).
  *
- * @param p_ld Pointer to the worker_payload_t object
+ * @param p_worker Pointer to the worker_payload_t object
  * @param p_resp act_resp_t contains the data that has been created
  * by the user after it processed the user request. It will contain all
  * the information that was requested even if it's just an error message.
  */
-static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
+static void write_response(worker_payload_t * p_worker, act_resp_t * p_resp)
 {
     /*
      *   0               1               2               3
@@ -739,7 +741,7 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
     memcpy((p_stream + offset), &reserved, H_RESP_RESERVED);
     offset += H_RESP_RESERVED;
 
-    uint32_t session_id = htonl(p_ld->session_id);
+    uint32_t session_id = htonl(p_worker->session_id);
     memcpy((p_stream + offset), &session_id, H_SESSION_ID);
     offset += H_SESSION_ID;
 
@@ -777,7 +779,7 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
                                                         : MAX_MSG_SIZE;
     for (;;)
     {
-        sent_bytes = write(p_ld->fd, (p_stream + offset), send_size);
+        sent_bytes = write(p_worker->fd, (p_stream + offset), send_size);
         if (-1 == sent_bytes)
         {
             debug_print_err("%s\n", strerror(errno));
@@ -806,7 +808,7 @@ static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp)
                                                       : MAX_FILE_SIZE;
         for (;;)
         {
-            sent_bytes = write(p_ld->fd, (p_stream + offset), send_size);
+            sent_bytes = write(p_worker->fd, (p_stream + offset), send_size);
             if (-1 == sent_bytes)
             {
                 debug_print_err("%s\n", strerror(errno));
@@ -1060,11 +1062,3 @@ static size_t get_base_resp_size(void)
     return H_RETURN_CODE + H_RESP_RESERVED + H_SESSION_ID + H_PAYLOAD_LEN + H_MSG_LEN;
 }
 
-static uint32_t generate_session_id(void)
-{
-    uint32_t sesh = rand() & 0xff;
-    sesh |= ((uint32_t)(rand() & 0xff) << 8);
-    sesh |= ((uint32_t)(rand() & 0xff) << 16);
-    sesh |= ((uint32_t)(rand() & 0xff) << 24);
-    return (uint32_t)sesh;
-}

@@ -205,14 +205,18 @@ class ClientRequest:
         self._reset_state()
         self._src = src
 
+    def set_ls(self, dst: str) -> None:
+        """Method is used for interactive mode"""
+        self._reset_state()
+        self._dst = dst
+        self._action = ActionType.LS
+
     def _reset_state(self) -> None:
         """Method is used for interactive mode"""
         self._action = ActionType.NO_OP
         self._user_flag = ActionType.NO_OP
         self._src = ""
         self._dst = ""
-
-
 
     @property
     def session(self) -> int:

@@ -21,6 +21,7 @@ static const char * OP_255 = "Server action failed";
 
 
 static const char * get_err_msg(ret_codes_t res);
+static ret_codes_t generate_session_id(htable_t * htable, uint32_t * p_session);
 static void set_resp(act_resp_t ** pp_resp, ret_codes_t code);
 static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld);
 static ret_codes_t do_del_file(db_t * p_db, wire_payload_t * p_ld);
@@ -55,17 +56,20 @@ act_resp_t * ctrl_populate_resp(ret_codes_t code)
  * @brief Function handles authenticating the user and calling the correct
  * API to perform the action requested.
  *
- * @param p_user_db Pointer to the user_db object
- * @param p_ld Pointer to the wire_payload object
+ * @param p_db Pointer to the user_db object
+ * @param p_client_req Pointer to the wire_payload object
  * @return Response object containing the response code, response message,
  * and a f_content object if available.
  */
-act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
+act_resp_t * ctrl_parse_action(db_t * p_db,
+                               wire_payload_t * p_client_req,
+                               uint32_t * srv_session)
 {
-    if ((NULL == p_user_db) || (NULL == p_ld))
+    if ((NULL == p_db) || (NULL == p_client_req))
     {
         goto ret_null;
     }
+
 
     act_resp_t * p_resp = get_resp();
     if (NULL == p_resp)
@@ -75,10 +79,43 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
 
     // Authenticate the user
     user_account_t * p_user = NULL;
-    ret_codes_t res = db_authenticate_user(p_user_db,
-                                           &p_user,
-                                           p_ld->p_username,
-                                           p_ld->p_passwd);
+    ret_codes_t res;
+    // The session is brand new, attempt to authenticate and generate session
+    if ((0 == p_client_req->session_id) && (0 == *srv_session))
+    {
+        res = db_authenticate_user(p_db,
+                                   &p_user,
+                                   p_client_req->p_username,
+                                   p_client_req->p_passwd);
+        if (OP_SUCCESS == res)
+        {
+            res = generate_session_id(p_db->sesh_htable, srv_session);
+            p_client_req->session_id = *srv_session;
+        }
+    }
+    // client did not use session, return an invalid session error
+    else if((0 == p_client_req->session_id) && (0 != *srv_session))
+    {
+        res = OP_SESSION_ERROR;
+    }
+    else if(0 != p_client_req->session_id)
+    {
+        // Check if the session used by client is a valid session ID
+        if (!htable_key_exists(p_db->sesh_htable, &p_client_req->session_id))
+        {
+            res = OP_SESSION_ERROR;
+        }
+        // If the session IS valid, but it is not valid for the current
+        // connection then return a session error as well
+        else if (*srv_session != p_client_req->session_id)
+        {
+            res = OP_SESSION_ERROR;
+        }
+        else
+        {
+            res = OP_SUCCESS;
+        }
+    }
 
     // If the user authentication failed, return the error code for it
     if (OP_SUCCESS != res)
@@ -91,7 +128,7 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
     }
 
     // Check operations from most to least exclusive
-    switch (p_ld->opt_code)
+    switch (p_client_req->opt_code)
     {
         case ACT_LOCAL_OPERATION:
         {
@@ -99,19 +136,19 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
             goto ret_resp;
         }
         case ACT_USER_OPERATION:
-            switch (p_ld->p_user_payload->user_flag)
+            switch (p_client_req->p_user_payload->user_flag)
             {
                 case USR_ACT_CREATE_USER:
                 {
                     // Ensure that the permission requested to be used
                     // for the new user is equal or less than the permission
                     // of the user performing the action
-                    if (p_user->permission < p_ld->p_user_payload->user_perm)
+                    if (p_user->permission < p_client_req->p_user_payload->user_perm)
                     {
                         set_resp(&p_resp, OP_PERMISSION_ERROR);
                         goto ret_resp;
                     }
-                    set_resp(&p_resp, user_action(p_user_db, p_ld));
+                    set_resp(&p_resp, user_action(p_db, p_client_req));
                     goto ret_resp;
                 }
                 case USR_ACT_DELETE_USER:
@@ -122,7 +159,7 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                         set_resp(&p_resp, OP_PERMISSION_ERROR);
                         goto ret_resp;
                     }
-                    set_resp(&p_resp, user_action(p_user_db, p_ld));
+                    set_resp(&p_resp, user_action(p_db, p_client_req));
                     goto ret_resp;
                 }
                 default:
@@ -140,7 +177,7 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
-            set_resp(&p_resp, do_del_file(p_user_db, p_ld));
+            set_resp(&p_resp, do_del_file(p_db, p_client_req));
             goto ret_resp;
         }
         case ACT_MAKE_REMOTE_DIRECTORY:
@@ -150,7 +187,7 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
-            set_resp(&p_resp, do_make_dir(p_user_db, p_ld));
+            set_resp(&p_resp, do_make_dir(p_db, p_client_req));
             goto ret_resp;
         }
 
@@ -161,17 +198,17 @@ act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld)
                 set_resp(&p_resp, OP_PERMISSION_ERROR);
                 goto ret_resp;
             }
-            set_resp(&p_resp, do_put_file(p_user_db, p_ld));
+            set_resp(&p_resp, do_put_file(p_db, p_client_req));
             goto ret_resp;
         }
 
         case ACT_LIST_REMOTE_DIRECTORY:
         {
-            do_list_dir(p_user_db, p_ld, &p_resp);
+            do_list_dir(p_db, p_client_req, &p_resp);
             goto ret_resp;
         }
         case ACT_GET_REMOTE_FILE:
-            do_get_file(p_user_db, p_ld, &p_resp);
+            do_get_file(p_db, p_client_req, &p_resp);
             goto ret_resp;
         default:
         {
@@ -547,4 +584,33 @@ static act_resp_t * get_resp(void)
         .p_content  = NULL
     };
     return p_resp;
+}
+
+static uint32_t gen_session(void)
+{
+    uint32_t sesh = rand() & 0xff;
+    sesh |= ((uint32_t)(rand() & 0xff) << 8);
+    sesh |= ((uint32_t)(rand() & 0xff) << 16);
+    sesh |= ((uint32_t)(rand() & 0xff) << 24);
+    return sesh;
+}
+
+static ret_codes_t generate_session_id(htable_t * htable, uint32_t * p_session)
+{
+    uint32_t sesh = gen_session();
+    while(htable_key_exists(htable, &sesh))
+    {
+        sesh = gen_session();
+    }
+
+    uint32_t * p_key = (uint32_t *)malloc(sizeof(uint32_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_key))
+    {
+        return OP_FAILURE;
+    }
+    *p_key = sesh;
+    htable_set(htable, p_key, p_key);
+
+    *p_session = *p_key;
+    return OP_SUCCESS;
 }
