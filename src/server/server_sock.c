@@ -1,16 +1,18 @@
 #include <server_sock.h>
-#include <stdatomic.h>
+#include <stdatomic.h> // c++ does not play nice with stdatomic.h so header is added here
 
-
+// Atomic flag is used to keep the main loop running. It is triggered
+// to false upon keyboard interrupt
 static volatile atomic_flag server_run;
-#define MAX_BITS 32
 
+// Each session created is handled by a single thread. The thread receives
+// a worker_payload_t to maintain its information
 typedef struct
 {
-    db_t * p_db;
-    uint32_t timeout;
-    uint32_t session_id;
-    int fd;
+    db_t *      p_db;
+    uint32_t    timeout;
+    uint32_t    session_id;
+    int         fd;
 } worker_payload_t;
 
 static int server_listen(uint32_t serv_port, socklen_t * record_len);
@@ -18,8 +20,7 @@ static void serve_client(void * sock_void);
 static void signal_handler(int signal);
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
 static void destroy_worker_pld(worker_payload_t ** pp_ld);
-static ret_codes_t read_client_req(worker_payload_t * p_ld,
-                                   wire_payload_t ** pp_wire);
+static ret_codes_t read_client_req(worker_payload_t * p_ld, wire_payload_t ** pp_wire);
 static ret_codes_t read_stream(int fd, void * payload, size_t bytes_to_read);
 static void write_response(worker_payload_t * p_worker, act_resp_t * p_resp);
 
@@ -28,17 +29,20 @@ static bool std_payload_has_file(uint64_t payload_len, uint16_t path_len);
 static bool user_payload_has_password(uint64_t payload_len, uint16_t username_len);
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
 static uint64_t get_file_stream_size(uint64_t payload_len, uint16_t path_len);
-
 static size_t get_base_resp_size(void);
-static ret_codes_t make_byte_array(worker_payload_t * p_ld,
-                                   uint8_t ** pp_byte_array,
-                                   uint64_t array_len,
-                                   bool make_string);
-static ret_codes_t read_client_user_payload(worker_payload_t * p_ld,
-                                            wire_payload_t * p_wire);
-static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
-                                           wire_payload_t * p_wire);
+static ret_codes_t make_byte_array(worker_payload_t * p_ld, uint8_t ** pp_byte_array, uint64_t array_len, bool make_string);
+static ret_codes_t read_client_user_payload(worker_payload_t * p_ld, wire_payload_t * p_wire);
+static ret_codes_t read_client_std_payload(worker_payload_t * p_ld, wire_payload_t * p_wire);
 static const char * action_to_string(act_t code);
+
+
+/*!
+ * @brief Start the main thread loop
+ *
+ * @param p_db Pointer to the database object
+ * @param port_num Port number to bind to
+ * @param timeout Timeout of each session with the client
+ */
 void start_server(db_t * p_db, uint32_t port_num, uint8_t timeout)
 {
 
