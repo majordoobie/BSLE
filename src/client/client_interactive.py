@@ -268,7 +268,6 @@ def shell(client: ClientRequest) -> None:
 
         # Occurs when the active connection times out (10 seconds)
         except TimeoutError:
-            print("Got a timeout")
             client.session = 0
             pass
         except KeyboardInterrupt:
