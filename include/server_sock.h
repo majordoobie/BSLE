@@ -23,6 +23,13 @@ extern "C" {
 #include <server_ctrl.h>
 
 
+/*!
+ * @brief Start the main thread loop
+ *
+ * @param p_db Pointer to the database object
+ * @param port_num Port number to bind to
+ * @param timeout Timeout of each session with the client
+ */
 void start_server(db_t * p_db, uint32_t port_num, uint8_t timeout);
 
 

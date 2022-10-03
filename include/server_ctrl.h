@@ -71,6 +71,15 @@ void ctrl_destroy(wire_payload_t ** pp_payload,
                   act_resp_t ** pp_res,
                   bool free_wire_payload);
 
+/*!
+ * @brief Function handles authenticating the user and calling the correct
+ * API to perform the action requested.
+ *
+ * @param p_db Pointer to the user_db object
+ * @param p_client_req Pointer to the wire_payload object
+ * @return Response object containing the response code, response message,
+ * and a f_content object if available.
+ */
 act_resp_t * ctrl_parse_action(db_t * p_db,
                                wire_payload_t * p_client_req,
                                uint32_t * srv_session);
