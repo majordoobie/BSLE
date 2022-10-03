@@ -1,11 +1,39 @@
 # File Transfer App
 ## Table of Content
+1. [Summary](#5)
 1. [How To Compile](#1)
 2. [How To Run Server](#2)
 3. [How To Run Client](#3)
 4. [Headers](#4)
 
 
+## Summary <a name="5"</a/>
+The server listens on the specified port for a connection. As soon as a connection is made to 
+the server, the server will enqueue the connection received into the thread pools job queue.
+Once the job is dequeued, an available thread will handle the connection with the client. The 
+headers used for the server-client communications is displayed in the header section of this guide.  
+
+On initial connection from the client, the client will set its session ID to 0, indicating that 
+this is an initial connection from the client. The server will then authenticate the client and 
+generate a session ID. The session ID is saved into a hash table containing the "session_id: time_of_connection". 
+The session ID is then continuously used by the server and client unless the client closes the socket, or 
+the client does not send any packets within the timeout limit set in the command line of the server start 
+up. When the session expires, an OP_SESSION_EXPIRE code is sent to the client forcing the client to re-authenticate. 
+Since I have not implemented any session hashes, like a JWT token, even if the session is valid, the client is 
+still authenticated using the hashed password in the client request. This should mitigate some replay attack but, 
+of course it is nothing like using a JWT token and encrypting the traffic. 
+
+All requests and replies that contain a payload (CMDS: get, put, ls) will have the data's hash prefixed in 
+the byte stream of the data being sent. The hash is generated from its source, for example, on a ls command, 
+the server will generate the byte stream that represents the ls output. The byte streamed is then hashed using 
+sha256 and prefixed in the byte stream in the format of <hash><byte_stream>. The client will then extract the 
+byte stream, hash it, and compare the hash with what it received from the server.  
+
+All user information is saved in the servers database (text file) in the server's home folder under `.cape`. 
+The file is prefixed with a magic byte that is validated on read to ensure that the file read is the correct 
+file. Additionally, the database is hashed and saved into a hash file “.cape/.cape.hash”. When the server boots 
+up, the server will read the database “.cape/.cape.db”, hash it, and compare it with the hash in the hash file. 
+If they do not match, the server will not boot up. All user passwords are stored as hashes, not plain text. 
 
 ## How To Compile <a name="1"></a>
 The builder script `builder.py` can be used to build the project and even 
