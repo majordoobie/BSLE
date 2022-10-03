@@ -27,9 +27,13 @@ static void db_update_db(db_t * p_db);
 
 // These functions are used for the creation of the hashtable that stores
 // the user information
-void free_value_callback(void * payload);
-static uint64_t hash_callback(void * key);
-static htable_match_t compare_callback(void * left_key, void * right_key);
+void db_free_value_callback(void * payload);
+static uint64_t db_hash_callback(void * key);
+static htable_match_t db_compare_callback(void * left_key, void * right_key);
+
+static htable_match_t sesh_compare_callback(void * left_key, void * right_key);
+static uint64_t sesh_hash_callback(void * key);
+void sesh_free_value_callback(void * payload);
 
 
 /*!
@@ -145,8 +149,8 @@ db_t * db_init(verified_path_t * p_home_dir)
 
 
     // Create the hashtable object that is going to store the users
-    htable_t * htable = htable_create(hash_callback, compare_callback,
-                                      NULL, free_value_callback);
+    htable_t * htable = htable_create(db_hash_callback, db_compare_callback,
+                                      NULL, db_free_value_callback);
     if (NULL == htable)
     {
         fprintf(stderr, "[!] Failed to create the hashtable"
@@ -161,6 +165,20 @@ db_t * db_init(verified_path_t * p_home_dir)
     }
     f_destroy_content(&p_db_contents);
 
+    // Create the hashtable object that is going to store the users
+    htable_t * sesh_htable = htable_create(
+        sesh_hash_callback,
+        sesh_compare_callback,
+        NULL,
+        sesh_free_value_callback);
+
+    if (NULL == sesh_htable)
+    {
+        fprintf(stderr, "[!] Failed to create the hashtable"
+                        "for session db\n");
+        goto cleanup_sesh;
+    }
+
     db_t * p_db = (db_t *)malloc(sizeof(db_t));
     if (UV_INVALID_ALLOC == verify_alloc(p_db))
     {
@@ -171,10 +189,13 @@ db_t * db_init(verified_path_t * p_home_dir)
 
     *p_db = (db_t){
         .p_home_dir     = p_home_dir,
-        .users_htable    = htable
+        .users_htable    = htable,
+        .sesh_htable    = sesh_htable,
     };
     return p_db;
 
+cleanup_sesh:
+    htable_destroy(sesh_htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
 cleanup_htable:
     htable_destroy(htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
 cleanup_hash_content:
@@ -354,10 +375,12 @@ void db_shutdown(db_t ** pp_db)
 
     // Destroy the db object
     htable_destroy(p_db->users_htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+    htable_destroy(p_db->sesh_htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
     f_destroy_path(&p_db->p_home_dir);
     *p_db = (db_t){
         .users_htable   = NULL,
-        .p_home_dir     = NULL
+        .p_home_dir     = NULL,
+        .sesh_htable    = NULL,
     };
 
     free(p_db);
@@ -929,12 +952,29 @@ ret_null:
  *
  * @return Hash value of the key
  */
-static uint64_t hash_callback(void * key)
+static uint64_t db_hash_callback(void * key)
 {
     char * s = (char *)key;
     uint64_t hash = htable_get_init_hash();
 
     htable_hash_key(&hash, s, strlen(s));
+    return hash;
+}
+
+/*!
+ * @brief Callback is used for the session_htable
+ *
+ * @param key Pointer to the key object to be hashed. In this case, it is
+ * the session ID
+ *
+ * @return Hash value of the key
+ */
+static uint64_t sesh_hash_callback(void * key)
+{
+    uint32_t * session = (uint32_t *)key;
+    uint64_t hash = htable_get_init_hash();
+
+    htable_hash_key(&hash, session, sizeof(uint32_t));
     return hash;
 }
 
@@ -945,7 +985,7 @@ static uint64_t hash_callback(void * key)
  *
  * @return If the two keys match. In this case, if the two usernames match
  */
-static htable_match_t compare_callback(void * left_key, void * right_key)
+static htable_match_t db_compare_callback(void * left_key, void * right_key)
 {
     char * left = (char *)left_key;
     char * right = (char *)right_key;
@@ -960,11 +1000,46 @@ static htable_match_t compare_callback(void * left_key, void * right_key)
 }
 
 /*!
+ * @brief Callback is used for the session_htable
+ * @param left_key Left key to compare
+ * @param right_key Right key to compare
+ *
+ * @return If the two keys match. In this case, if the two sessions match
+ */
+static htable_match_t sesh_compare_callback(void * left_key, void * right_key)
+{
+    uint32_t left = *(uint32_t *)left_key;
+    uint32_t right = *(uint32_t *)right_key;
+
+    // This test function only tests the payload strings. But you would compare
+    // all items of the struct
+    if (left == right)
+    {
+        return HT_MATCH_TRUE;
+    }
+    return HT_MATCH_FALSE;
+}
+/*!
+ * @brief Callback is used for the session_htable
+ *
+ * @param payload Pointer to the value object stored in the hash table
+ */
+void sesh_free_value_callback(void * payload)
+{
+    if (NULL == payload)
+    {
+        return;
+    }
+    free(payload);
+    payload = NULL;
+}
+
+/*!
  * @brief Callback is used for the user_htable
  *
  * @param payload Pointer to the value object stored in the hash table
  */
-void free_value_callback(void * payload)
+void db_free_value_callback(void * payload)
 {
     if (NULL == payload)
     {

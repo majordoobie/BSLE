@@ -1,1 +1,0 @@
-##### This should be the client's default home directory.

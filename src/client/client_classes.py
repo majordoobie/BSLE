@@ -196,8 +196,23 @@ class ClientRequest:
         self._other_password = value
 
     def set_auth_headers(self) -> None:
+        """Method is used for interactive mode"""
+        self._reset_state()
         self._action = ActionType.LOCAL_OP
+
+    def set_locals(self, src: Path) -> None:
+        """Method is used for interactive mode"""
+        self._reset_state()
+        self._src = src
+
+    def _reset_state(self) -> None:
+        """Method is used for interactive mode"""
+        self._action = ActionType.NO_OP
         self._user_flag = ActionType.NO_OP
+        self._src = ""
+        self._dst = ""
+
+
 
     @property
     def session(self) -> int:

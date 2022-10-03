@@ -396,7 +396,9 @@ static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld)
  * @param pp_payload Double pointer to the payload object
  * @param pp_res Double pointer to the response object
  */
-void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
+void ctrl_destroy(wire_payload_t ** pp_payload,
+                  act_resp_t ** pp_res,
+                  bool free_wire_payload)
 {
     if (NULL != pp_res)
     {
@@ -468,9 +470,12 @@ void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res)
         .type           = 0,
     };
 
-    free(p_payload);
-    p_payload   = NULL;
-    *pp_payload = NULL;
+    if (free_wire_payload)
+    {
+        free(p_payload);
+        p_payload   = NULL;
+        *pp_payload = NULL;
+    }
 }
 
 static void set_resp(act_resp_t ** pp_resp, ret_codes_t code)

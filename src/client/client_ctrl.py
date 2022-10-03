@@ -24,7 +24,7 @@ class DirList:
             self._size /= 1024.0
 
 
-def _do_list_ldir(args: ClientRequest) -> None:
+def do_list_ldir(args: ClientRequest) -> None:
     contents = ""
     for file in args._src.iterdir():
         # Only ready file and dirs
@@ -63,7 +63,7 @@ def _parse_dir(array: Union[str, bytes]) -> None:
         print(f"{i.f_type} {i.f_size:>6} {i.f_name}")
 
 
-def _do_lmkdir(args: ClientRequest) -> None:
+def do_lmkdir(args: ClientRequest) -> None:
     try:
         args._src.mkdir()
         print("[+] Create directory")
@@ -76,7 +76,7 @@ def _do_lmkdir(args: ClientRequest) -> None:
         print(f"[!] {error}")
 
 
-def _do_ldelete(args: ClientRequest) -> None:
+def do_ldelete(args: ClientRequest) -> None:
     try:
         if args._src.is_file():
             args._src.unlink()
@@ -108,13 +108,13 @@ def parse_action(resp: ServerResponse) -> None:
         print(f"[~] {resp.save_file()}")
 
     elif ActionType.L_LS == resp.action:
-        _do_list_ldir(resp.request)
+        do_list_ldir(resp.request)
 
     elif ActionType.L_MKDIR == resp.action:
-        _do_lmkdir(resp.request)
+        do_lmkdir(resp.request)
 
     elif ActionType.L_DELETE == resp.action:
-        _do_ldelete(resp.request)
+        do_ldelete(resp.request)
 
 
 

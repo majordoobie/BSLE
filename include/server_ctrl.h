@@ -67,7 +67,9 @@ typedef struct
  * @param pp_payload Double pointer to the payload object
  * @param pp_res Double pointer to the response object
  */
-void ctrl_destroy(wire_payload_t ** pp_payload, act_resp_t ** pp_res);
+void ctrl_destroy(wire_payload_t ** pp_payload,
+                  act_resp_t ** pp_res,
+                  bool free_wire_payload);
 
 act_resp_t * ctrl_parse_action(db_t * p_user_db, wire_payload_t * p_ld);
 

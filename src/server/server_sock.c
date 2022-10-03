@@ -1,7 +1,9 @@
 #include <server_sock.h>
 #include <stdatomic.h>
 
+
 static volatile atomic_flag server_run;
+#define MAX_BITS 32
 
 typedef struct
 {
@@ -16,9 +18,11 @@ static void serve_client(void * sock_void);
 static void signal_handler(int signal);
 static int get_ip_port(struct sockaddr * addr, socklen_t addr_size, char * host, char * port);
 static void destroy_worker_pld(worker_payload_t ** pp_ld);
-static wire_payload_t * read_client_req(worker_payload_t * p_ld);
+static ret_codes_t read_client_req(worker_payload_t * p_ld,
+                                   wire_payload_t ** pp_wire);
 static ret_codes_t read_stream(int fd, void * payload, size_t bytes_to_read);
 static void write_response(worker_payload_t * p_ld, act_resp_t * p_resp);
+static uint32_t generate_session_id(void);
 
 // Readability functions
 static bool std_payload_has_file(uint64_t payload_len, uint16_t path_len);
@@ -122,6 +126,7 @@ void start_server(db_t * p_db, uint32_t port_num, uint8_t timeout)
     // Close the server
     close(server_socket);
     thpool_destroy(&thpool);
+    return;
 
 cleanup_thpool:
     thpool_destroy(&thpool);
@@ -297,15 +302,35 @@ static void serve_client(void * sock_void)
 
     // If we get a null then we know that some kind of error occurred and
     // has been handled
-    wire_payload_t * p_wire = read_client_req(p_ld);
-    if (NULL == p_wire)
+    wire_payload_t * p_wire = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_wire))
     {
         goto ret_null;
     }
+    ret_codes_t result = OP_SUCCESS;
+    while (OP_SUCCESS == result)
+    {
+        result = read_client_req(p_ld, &p_wire);
+        if (OP_SUCCESS != result)
+        {
+            goto ret_null;
+        }
 
-    act_resp_t * resp = ctrl_parse_action(p_ld->p_db, p_wire);
-    write_response(p_ld, resp);
-    ctrl_destroy(&p_wire, &resp);
+        if (0 == p_wire->session_id)
+        {
+            p_wire->session_id = generate_session_id();
+        }
+        act_resp_t * resp = ctrl_parse_action(p_ld->p_db, p_wire);
+        write_response(p_ld, resp);
+
+        // Last value "false" instructs the destroy function to completely
+        // clean out the p_wire object but do not free it so that we
+        // can reuse it. All values are nullified
+        ctrl_destroy(&p_wire, &resp, false);
+    }
+
+    ctrl_destroy(&p_wire, NULL, true);
+
 
 ret_null:
     destroy_worker_pld(&p_ld);
@@ -346,7 +371,8 @@ static void destroy_worker_pld(worker_payload_t ** pp_ld)
  * @param p_ld Pointer to the worker_payload object
  * @return wire_payload_t object
  */
-static wire_payload_t * read_client_req(worker_payload_t * p_ld)
+static ret_codes_t read_client_req(worker_payload_t * p_ld,
+                                   wire_payload_t ** pp_wire)
 {
     /*
      *
@@ -368,12 +394,12 @@ static wire_payload_t * read_client_req(worker_payload_t * p_ld)
      * |                ~user_payload || std_payload~                  |
      * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      */
-    wire_payload_t * p_wire = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
-    act_resp_t * resp = NULL;
-    if (UV_INVALID_ALLOC == verify_alloc(p_wire))
+    if ((NULL == p_ld) || (NULL == pp_wire) || (NULL == *pp_wire))
     {
         goto ret_null;
     }
+    wire_payload_t * p_wire = *pp_wire;
+    act_resp_t * resp = NULL;
 
     ret_codes_t result = read_stream(p_ld->fd, &p_wire->opt_code, H_OPCODE);
     if (OP_SUCCESS != result)
@@ -460,21 +486,23 @@ static wire_payload_t * read_client_req(worker_payload_t * p_ld)
             goto failure_response;
         }
     }
-    return p_wire;
+    return OP_SUCCESS;
 
 failure_response:
     resp = ctrl_populate_resp(result);
     if (NULL == resp)
     {
-        goto cleanup;
+        debug_print("%s\n", "[WORKER - READ_CLIENT] Failed to read from client,"
+                            " sending a response packet");
+        goto ret_null;
     }
-    debug_print("%s\n", "[WORKER - READ_CLIENT] Failed to read from client,"
-                        " sending a response packet");
-    write_response(p_ld, resp);
-cleanup:
-    ctrl_destroy(&p_wire, NULL);
+    if (OP_SOCK_CLOSED != result)
+    {
+        write_response(p_ld, resp);
+    }
+    return result;
 ret_null:
-    return NULL;
+    return OP_FAILURE;
 }
 
 static ret_codes_t read_client_std_payload(worker_payload_t * p_ld,
@@ -1030,4 +1058,13 @@ static const char * action_to_string(act_t code)
 static size_t get_base_resp_size(void)
 {
     return H_RETURN_CODE + H_RESP_RESERVED + H_SESSION_ID + H_PAYLOAD_LEN + H_MSG_LEN;
+}
+
+static uint32_t generate_session_id(void)
+{
+    uint32_t sesh = rand() & 0xff;
+    sesh |= ((uint32_t)(rand() & 0xff) << 8);
+    sesh |= ((uint32_t)(rand() & 0xff) << 16);
+    sesh |= ((uint32_t)(rand() & 0xff) << 24);
+    return (uint32_t)sesh;
 }

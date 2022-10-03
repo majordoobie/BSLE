@@ -1,6 +1,7 @@
 import socket
 import struct
 from typing import Union
+import contextlib
 
 from client_classes import ClientRequest, RespHeader, ServerResponse, SUCCESS_RESPONSE
 
@@ -35,45 +36,58 @@ def _socket_timedout(conn: socket.socket):
     return False
 
 
+def connect(args: ClientRequest, conn: socket) -> ServerResponse:
+    conn.send(args.client_request)
+
+    return_code = _read_stream(conn, RespHeader.RETURN_CODE, args.debug)
+    reserved = _read_stream(conn, RespHeader.RESERVED, args.debug)
+    session_id = _read_stream(conn, RespHeader.SESSION_ID, args.debug)
+    payload_len = _read_stream(conn, RespHeader.PAYLOAD_LEN, args.debug)
+    msg_len = _read_stream(conn, RespHeader.MSG_LEN, args.debug)
+    msg = _read_stream(conn, msg_len, args.debug).decode(encoding="utf-8")
+
+    # Create the server response object
+    resp = ServerResponse(args,
+                          return_code,
+                          reserved,
+                          session_id,
+                          payload_len,
+                          msg_len,
+                          msg)
+
+    # If message was successful, extract the payload if it exists
+    if SUCCESS_RESPONSE == return_code:
+
+        stream_size = payload_len - (msg_len
+                                     + RespHeader.MSG_LEN.value
+                                     + RespHeader.SHA256DIGEST.value)
+
+        # If there is data in the stream pull it
+        if stream_size > 0:
+            resp.digest = _read_stream(conn,
+                                       RespHeader.SHA256DIGEST,
+                                       args.debug)
+            resp.payload = _read_stream(conn, stream_size, args.debug)
+
+    # Needed to make a new line for the byte stream output
+    if args.debug:
+        print("\n")
+    return resp
+
+
 def make_connection(args: ClientRequest) -> ServerResponse:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
         conn.connect(args.socket)
-        conn.send(args.client_request)
-
-        return_code = _read_stream(conn, RespHeader.RETURN_CODE, args.debug)
-        reserved = _read_stream(conn, RespHeader.RESERVED, args.debug)
-        session_id = _read_stream(conn, RespHeader.SESSION_ID, args.debug)
-        payload_len = _read_stream(conn, RespHeader.PAYLOAD_LEN, args.debug)
-        msg_len = _read_stream(conn, RespHeader.MSG_LEN, args.debug)
-        msg = _read_stream(conn, msg_len, args.debug).decode(encoding="utf-8")
-
-        # Create the server response object
-        resp = ServerResponse(args,
-                              return_code,
-                              reserved,
-                              session_id,
-                              payload_len,
-                              msg_len,
-                              msg)
-
-        # If message was successful, extract the payload if it exists
-        if SUCCESS_RESPONSE == return_code:
-
-            stream_size = payload_len - (msg_len
-                                         + RespHeader.MSG_LEN.value
-                                         + RespHeader.SHA256DIGEST.value)
-
-            # If there is data in the stream pull it
-            if stream_size > 0:
-                resp.digest = _read_stream(conn,
-                                           RespHeader.SHA256DIGEST,
-                                           args.debug)
-                resp.payload = _read_stream(conn, stream_size, args.debug)
-
-        # Needed to make a new line for the byte stream output
-        if args.debug:
-            print("\n")
-        return resp
+        resp = connect(args, conn)
+    return resp
 
 
+@contextlib.contextmanager
+def connection(client: ClientRequest) -> socket:
+    conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    conn.connect(client.socket)
 
+    # Yield the connection to be used
+    yield conn
+    # Close the connection
+    conn.close()
