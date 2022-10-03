@@ -307,7 +307,7 @@ static void serve_client(void * sock_void)
         goto ret_null;
     }
     ret_codes_t result = OP_SUCCESS;
-    while (OP_SUCCESS == result)
+    for(;;)
     {
         // p_wire->session_id will receive the session_id from the
         // client connection. On initial connection, the session is set
@@ -315,6 +315,10 @@ static void serve_client(void * sock_void)
         result = read_client_req(p_worker, &p_wire);
         if (OP_SUCCESS != result)
         {
+            // Key and value are the same pointer so no need to free the
+            // value from htable_del
+            htable_del(p_worker->p_db->sesh_htable,
+                       &p_worker->session_id, HT_FREE_PTR_TRUE);
             goto ret_null;
         }
 
