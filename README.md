@@ -1,4 +1,13 @@
 # File Transfer App
+
+**Client**
+
+![](docs/Screen%20Shot%202022-10-03%20at%2016.43.05.jpg)
+
+**Server**
+
+![](docs/Screen%20Shot%202022-10-03%20at%2016.43.46.jpg)
+
 ## Table of Content
 1. [Summary](#5)
 1. [How To Compile](#1)
