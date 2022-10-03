@@ -4,7 +4,6 @@ add_executable(
         gtest_server_file_api.cpp
         gtest_server_args.cpp
         gtest_server_db.cpp
-        gtest_server_sock.cpp
 )
 target_link_libraries(
         gtest_server

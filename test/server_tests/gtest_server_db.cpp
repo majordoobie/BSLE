@@ -18,6 +18,7 @@ class DBUserActions : public ::testing::Test
 
  public:
     db_t * user_db;
+    uint32_t session = 0;
     verified_path_t * p_home_dir;
     wire_payload_t * payload1;
     wire_payload_t * payload2;
@@ -251,7 +252,7 @@ TEST_F(DBUserActions, UserDeletion)
     EXPECT_EQ(res, OP_SUCCESS);
 
     res = db_remove_user(this->user_db, "VDooRanger Imperial");
-    EXPECT_EQ(res, OP_USER_EXISTS);
+    EXPECT_EQ(res, OP_USER_NO_EXIST);
 }
 
 TEST_F(DBUserActions, TestUserAction_BadAuth)
@@ -269,7 +270,7 @@ TEST_F(DBUserActions, TestUserAction_CreateUserBadPerm)
 {
     this->payload1->p_user_payload->user_perm = READ_WRITE;
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
     ctrl_destroy(NULL, &resp, true);
@@ -280,7 +281,7 @@ TEST_F(DBUserActions, TestUserAction_CreateUserExists)
     free(this->payload1->p_user_payload->p_username);
     this->payload1->p_user_payload->p_username = strdup(this->payload1->p_username);
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_USER_EXISTS);
     ctrl_destroy(NULL, &resp, true);
@@ -290,7 +291,7 @@ TEST_F(DBUserActions, TestUserAction_DeleteUserNoPerm)
 {
     this->payload1->p_user_payload->user_flag = USR_ACT_DELETE_USER;
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload1, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
     ctrl_destroy(NULL, &resp, true);
@@ -302,9 +303,9 @@ TEST_F(DBUserActions, TestUserAction_DeleteUserNotExist)
     free(this->payload2->p_user_payload->p_username);
     this->payload2->p_user_payload->p_username = strdup("UserNotExist");
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload2, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload2, &this->session);
     ASSERT_NE(resp, nullptr);
-    EXPECT_EQ(resp->result, OP_USER_EXISTS);
+    EXPECT_EQ(resp->result, OP_USER_NO_EXIST);
     ctrl_destroy(NULL, &resp, true);
 }
 
@@ -312,7 +313,7 @@ TEST_F(DBUserActions, TestUserAction_DeleteUser)
 {
     this->payload2->p_user_payload->user_flag = USR_ACT_DELETE_USER;
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload2, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload2, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);
     ctrl_destroy(NULL, &resp, true);
@@ -325,7 +326,7 @@ TEST_F(DBUserActions, TestUserAction_ListDirectoryErrorNotExist)
     this->payload3->p_std_payload->p_path = strdup("NotExist");
     this->payload3->p_std_payload->path_len = strlen("NotExist");
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_RESOLVE_ERROR);
     ctrl_destroy(NULL, &resp, true);
@@ -338,7 +339,7 @@ TEST_F(DBUserActions, TestUserAction_ListDirectoryError)
     this->payload3->p_std_payload->p_path = strdup(file1.filename().c_str());
     this->payload3->p_std_payload->path_len = (uint16_t)strlen(file1.filename().c_str());
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PATH_NOT_DIR);
     ctrl_destroy(NULL, &resp, true);
@@ -351,7 +352,7 @@ TEST_F(DBUserActions, TestUserAction_ListDirectory)
     this->payload3->p_std_payload->p_path = strdup("");
     this->payload3->p_std_payload->path_len = strlen("");
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);
     printf("%.*s\n", (int)resp->p_content->stream_size, resp->p_content->p_stream);
@@ -362,7 +363,7 @@ TEST_F(DBUserActions, TestUserAction_GetFile)
 {
     this->payload3->opt_code = ACT_GET_REMOTE_FILE;
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);
     printf("%.*s\n", (int)resp->p_content->stream_size, resp->p_content->p_stream);
@@ -376,7 +377,7 @@ TEST_F(DBUserActions, TestUserAction_GetFileNotFile)
     this->payload3->p_std_payload->p_path = strdup("");
     this->payload3->p_std_payload->path_len = strlen("");
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PATH_NOT_FILE);
     ctrl_destroy(NULL, &resp, true);
@@ -389,7 +390,7 @@ TEST_F(DBUserActions, TestUserAction_GetFileError)
     this->payload3->p_std_payload->p_path = strdup("not_exist");
     this->payload3->p_std_payload->path_len = strlen("not_exist");
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_RESOLVE_ERROR);
     ctrl_destroy(NULL, &resp, true);
@@ -399,7 +400,7 @@ TEST_F(DBUserActions, TestUserAction_PutFilePermError)
 {
     this->payload3->opt_code = ACT_PUT_REMOTE_FILE;
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
     ctrl_destroy(NULL, &resp, true);
@@ -409,7 +410,7 @@ TEST_F(DBUserActions, TestUserAction_PutFileFileExists)
 {
     this->payload4->opt_code = ACT_PUT_REMOTE_FILE;
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_FILE_EXISTS);
     ctrl_destroy(NULL, &resp, true);
@@ -422,7 +423,7 @@ TEST_F(DBUserActions, TestUserAction_PutFile)
     this->payload4->p_std_payload->p_path = strdup("new_file.txt");
     this->payload4->p_std_payload->path_len = strlen("new_file.txt");
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);
     ctrl_destroy(NULL, &resp, true);
@@ -432,7 +433,7 @@ TEST_F(DBUserActions, TestUserAction_MakeDirPermError)
 {
     this->payload3->opt_code = ACT_MAKE_REMOTE_DIRECTORY;
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload3, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
     ctrl_destroy(NULL, &resp, true);
@@ -442,7 +443,7 @@ TEST_F(DBUserActions, TestUserAction_MakeDirFileExits)
 {
     this->payload4->opt_code = ACT_MAKE_REMOTE_DIRECTORY;
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_DIR_EXISTS);
     ctrl_destroy(NULL, &resp, true);
@@ -455,7 +456,7 @@ TEST_F(DBUserActions, TestUserAction_MakeDirErrorResolve)
     this->payload4->p_std_payload->p_path = strdup("dir_not_exist/new_dir");
     this->payload4->p_std_payload->path_len = strlen("dir_not_exist/new_dir");
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_RESOLVE_ERROR);
     ctrl_destroy(NULL, &resp, true);
@@ -468,7 +469,7 @@ TEST_F(DBUserActions, TestUserAction_MakeDir)
     this->payload4->p_std_payload->p_path = strdup("new_dir");
     this->payload4->p_std_payload->path_len = strlen("new_dir");
 
-    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, 0);
+    act_resp_t * resp = ctrl_parse_action(this->user_db, this->payload4, &this->session);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);
     ctrl_destroy(NULL, &resp, true);

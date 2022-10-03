@@ -9,6 +9,7 @@ SESSION_ERROR = 2
 
 @dataclass
 class DirList:
+    """Data class handles formatting the directory listing"""
     f_type: str
     _size: int
     f_name: str
@@ -94,6 +95,7 @@ def do_ldelete(args: ClientRequest) -> None:
 
 
 def parse_action(resp: ServerResponse) -> None:
+    """Parse the server response to perform actions"""
     if not resp.successful:
         print(f"[!] {resp.msg}")
         if SESSION_ERROR == resp.return_code:

@@ -22,6 +22,7 @@ class RespHeader(Enum):
 
 @unique
 class ActionType(Enum):
+    """Action Type indicates the action requested by the user"""
     NO_OP = 0
     USER_OP = 1
     DELETE = 2
@@ -92,21 +93,17 @@ class ClientRequest:
                  session_id: int = 0,
                  **kwargs) -> None:
         """
-        Create a "dataclass" containing the configuration and action required
-        to communicate with the server.
+        ClientRequest object maintains the users information while
+        interacting with the serer
 
-        Args:
-            host (str): IP of the server
-            port (int): Port of the server
-            username (str): Username used to either authenticate or to action
-                on when using commands such as "--create_user"
-            src (:obj:`pathlib.Path`, optional): Path to the source file to
-                reference
-            dst (:obj:`pathlib.Path`, optional): Path to the server file to
-                reference
-            perm (:obj:`UserPerm`, optional): Permission to set to user when
-                using "--create_user"
-            **kwargs (dict): Remainder of optional arguments passed.
+        :param host: IP of the server to connect to
+        :param port: Port of the server to connect to
+        :param username: Username of the logged-in user
+        :param src: Source address to reference
+        :param dst: Destination address to reference
+        :param perm: Permission of the new user
+        :param session_id: Session ID provided by the server
+        :param kwargs: The rest of the options provided by the cli
         """
         self._host = host
         self._port = port
@@ -147,8 +144,89 @@ class ClientRequest:
                 f"[O_ACT] {self._user_flag}"
             )
 
+    def _parse_kwargs(self, kwargs: dict) -> None:
+        """
+        Parse the remaining arguments and ensure that only a single action
+        is specified. If more than a single argument is passed in, raise
+        an error
+
+        :param kwargs: Dictionary of options to set
+        """
+
+        action = None
+        for key, value in kwargs.items():
+            if key == "debug":
+                continue
+            if value:
+                if key in ("create_user", "delete_user"):
+                    self._other_username = value
+                if action is not None:
+                    raise ValueError("[!] Only one command flag may be set")
+                action = key
+
+        if action is None:
+            raise ValueError("[!] No command flag set")
+
+        for name, member in ActionType.__members__.items():
+            if name == action.upper():
+                self._action: ActionType = member
+
+        dep_value = 0
+        for name, member in DependencyAction.__members__.items():
+            if name == self._action.name:
+                dep_value = member.value
+                break
+
+        if dep_value == 1:
+            if self._src is None:
+                raise ValueError(
+                    f"[!] Command \"--{self._action.name.lower()}\""
+                    f" requires \"--src\" argument")
+
+        elif dep_value == 2:
+            if self._dst is None:
+                raise ValueError(
+                    f"[!] Command \"--{self._action.name.lower()}\""
+                    f" requires \"--dst\" argument")
+
+        elif dep_value == 3:
+            if self._dst is None or self._src is None:
+                raise ValueError(
+                    f"[!] Command \"--{self._action.name.lower()}\""
+                    f" requires \"--src\" and \"--dst\" argument")
+
+        elif dep_value == 4:
+            if self._perm is None:
+                raise ValueError(
+                    f"[!] Command \"--{self._action.name.lower()}\""
+                    f" requires \"--perm\" argument")
+
+        # Is command is to either create or delete a user, set the action
+        # flag to USER_OP and set the USER_FLAG to the type of user op
+        if self._action in (ActionType.DELETE_USER, ActionType.CREATE_USER):
+            self._user_flag = self._action
+            self._action = ActionType.USER_OP
+
+        # If command is a local operation, set the action type to the LOCAL_OP
+        # this will instruct the server to only authenticate
+        if self._action in (ActionType.L_LS, ActionType.L_MKDIR,
+                            ActionType.L_DELETE):
+            self._user_flag = self._action
+            self._action = ActionType.LOCAL_OP
+
+        if ActionType.GET == self._action:
+            if not self._src.is_dir():
+                raise FileExistsError("Path provided must be a directory")
+
+            filename = Path(self._dst).name
+            path = self._src / filename
+            if path.exists():
+                raise FileExistsError(f"File {path.as_posix()} already exists")
+            self._get_path = path
+
     @property
     def debug(self) -> bool:
+        """Hidden cli option "--debug" enables extra printing of information"""
         return self._debug
 
     @property
@@ -263,6 +341,8 @@ class ClientRequest:
     @property
     def client_request(self) -> bytes:
         """
+        Generate client request payload
+
         0               1               2               3
         0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -292,17 +372,20 @@ class ClientRequest:
         request_header += self._username.encode(encoding="utf-8")
         request_header += self._password.encode(encoding="utf-8")
 
-        """
-        Create the user payload
-           0               1               2               3   
-           0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |  USR_ACT_FLAG |   PERMISSION  |          USERNAME_LEN         |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           | **USERNAME**  |         PASSWORD_LEN          | **PASSWORD**  |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        """
-        if ActionType.USER_OP == self._action:
+        if ActionType.LOCAL_OP == self._action:
+            request_header += struct.pack("!Q", 0)
+
+        elif ActionType.USER_OP == self._action:
+            """
+            Create the user payload
+               0               1               2               3   
+               0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
+               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+               |  USR_ACT_FLAG |   PERMISSION  |          USERNAME_LEN         |
+               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+               | **USERNAME**  |         PASSWORD_LEN          | **PASSWORD**  |
+               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            """
             user_payload = struct.pack("!BBH",
                                        self._user_flag.value,
                                        self._perm.value,
@@ -316,9 +399,6 @@ class ClientRequest:
 
             request_header += struct.pack("!Q", len(user_payload))
             request_header += user_payload
-
-        elif ActionType.LOCAL_OP == self._action:
-            request_header += struct.pack("!Q", 0)
 
         else:
             """
@@ -354,86 +434,14 @@ class ClientRequest:
             print(' '.join('{:02x}'.format(x) for x in request_header))
         return request_header
 
-    def _parse_kwargs(self, kwargs) -> None:
-        """
-        Parse the remaining arguments and ensure that only a single action
-        is specified. If more than a single argument is passed in, raise
-        an error
-
-        Args:
-            kwargs (dict): Remainder of arguments passed in
-
-        Raises:
-            ValueError: If more than a single action is passed in or if the
-                action is missing dependencies such as --src or --dst
-        """
-        action = None
-        for key, value in kwargs.items():
-            if key == "debug":
-                continue
-            if value:
-                if key in ("create_user", "delete_user"):
-                    self._other_username = value
-                if action is not None:
-                    raise ValueError("[!] Only one command flag may be set")
-                action = key
-
-        if action is None:
-            raise ValueError("[!] No command flag set")
-
-        for name, member in ActionType.__members__.items():
-            if name == action.upper():
-                self._action: ActionType = member
-
-        dep_value = 0
-        for name, member in DependencyAction.__members__.items():
-            if name == self._action.name:
-                dep_value = member.value
-                break
-
-        if dep_value == 1:
-            if self._src is None:
-                raise ValueError(f"[!] Command \"--{self._action.name.lower()}\""
-                                 f" requires \"--src\" argument")
-
-        elif dep_value == 2:
-            if self._dst is None:
-                raise ValueError(f"[!] Command \"--{self._action.name.lower()}\""
-                                 f" requires \"--dst\" argument")
-
-        elif dep_value == 3:
-            if self._dst is None or self._src is None:
-                raise ValueError(f"[!] Command \"--{self._action.name.lower()}\""
-                                 f" requires \"--src\" and \"--dst\" argument")
-
-        elif dep_value == 4:
-            if self._perm is None:
-                raise ValueError(f"[!] Command \"--{self._action.name.lower()}\""
-                                 f" requires \"--perm\" argument")
-
-        # Is command is to either create or delete a user, set the action
-        # flag to USER_OP and set the USER_FLAG to the type of user op
-        if self._action in (ActionType.DELETE_USER, ActionType.CREATE_USER):
-            self._user_flag = self._action
-            self._action = ActionType.USER_OP
-
-        # If command is a local operation, set the action type to the LOCAL_OP
-        # this will instruct the server to only authenticate
-        if self._action in (ActionType.L_LS, ActionType.L_MKDIR, ActionType.L_DELETE):
-            self._user_flag = self._action
-            self._action = ActionType.LOCAL_OP
-
-        if ActionType.GET == self._action:
-            if not self._src.is_dir():
-                raise FileExistsError("Path provided must be a directory")
-
-            filename = Path(self._dst).name
-            path = self._src / filename
-            if path.exists():
-                raise FileExistsError(f"File {path.as_posix()} already exists")
-            self._get_path = path
-
     def save_file(self, payload: bytes) -> str:
+        """
+        Function is used during "GET" operations to save the byte stream
+        from the server to the clients disk
+
+        :param payload: Bytestream to save
+        :return: Message indicating the action conducted
+        """
         try:
             with self._get_path.open("wb") as handle:
                 for chunk in _chunker(payload, len(payload)):
@@ -445,9 +453,11 @@ class ClientRequest:
             return str(error)
 
 
-
 @dataclass
 class ServerResponse:
+    """
+    Dataclass handles storing the server response
+    """
     request: ClientRequest
     return_code: int
     reserved: int
@@ -465,7 +475,6 @@ class ServerResponse:
         if not self.valid_hash:
             return ("Files hash from server does not match the local hash. "
                     "Will not save the file to disk.")
-        print("here big boi")
         return self.request.save_file(self.payload)
 
     @property
@@ -480,6 +489,12 @@ class ServerResponse:
 
     @property
     def valid_hash(self) -> bool:
+        """
+        Verified that the hash received from the server is the same
+        hash that the client generated
+
+        :return: bool indicating if the two hashes match
+        """
         if self.digest is None:
             return False
 
@@ -487,11 +502,13 @@ class ServerResponse:
 
 
 def _chunker(payload: bytes, size: int) -> bytes:
+    """Byte segment generator"""
     for pos in range(0, len(payload), size):
         yield payload[pos: pos + size]
 
 
 def _hash(payload: bytes, size: int = 1024) -> bytes:
+    """Hash the bytes stream"""
     sha256_hash = hashlib.sha256()
     for chunk in _chunker(payload, size):
         sha256_hash.update(chunk)

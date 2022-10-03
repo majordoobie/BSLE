@@ -1,37 +1,32 @@
+import contextlib
 import socket
 import struct
-from typing import Union, Optional
-import contextlib
+from typing import Union
 
-from client_classes import ClientRequest, RespHeader, ServerResponse, SUCCESS_RESPONSE
+from client_classes import ClientRequest, RespHeader, ServerResponse, \
+    SUCCESS_RESPONSE
 
 
-def _read_stream(conn: socket, size: Union[int, RespHeader], debug: bool = False) -> Union[bytes, int]:
-    buffer = bytes()
-    bytes_to_read = size if isinstance(size, int) else size.value
+@contextlib.contextmanager
+def connection(client: ClientRequest) -> socket:
+    """Context manager for keeping the socket open until the interactive
+    session is complete"""
+    conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    conn.connect(client.socket)
 
-    while bytes_to_read != len(buffer):
-        buffer += conn.recv((bytes_to_read - len(buffer)))
+    # Yield the connection to be used
+    yield conn
+    # Close the connection
+    conn.close()
 
-    if debug:
-        print(' '.join('{:02x}'.format(x) for x in buffer), end=" ")
 
-    if isinstance(size, RespHeader):
-        if 1 == bytes_to_read:
-            buffer = struct.unpack("!B", buffer)[0]
-        elif 4 == bytes_to_read:
-            buffer = struct.unpack("!I", buffer)[0]
-        elif 8 == bytes_to_read:
-            buffer = struct.unpack("!Q", buffer)[0]
-
-    return buffer
-
-# def _socket_timeout(conn: socket.socket):
-#     i = conn.recv(1, socket.MSG_PEEK)
-#     payload = struct.unpack(">B", i)
-#     if i[0] == 2:
-#         return True
-#     return False
+def make_connection(args: ClientRequest) -> ServerResponse:
+    """Make a single connection and close the socket. This is used for
+    the CLI"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+        conn.connect(args.socket)
+        resp = connect(args, conn)
+    return resp
 
 
 def connect(client: ClientRequest, conn: socket) -> ServerResponse:
@@ -82,19 +77,22 @@ def connect(client: ClientRequest, conn: socket) -> ServerResponse:
     return resp
 
 
-def make_connection(args: ClientRequest) -> ServerResponse:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
-        conn.connect(args.socket)
-        resp = connect(args, conn)
-    return resp
+def _read_stream(conn: socket, size: Union[int, RespHeader], debug: bool = False) -> Union[bytes, int]:
+    buffer = bytes()
+    bytes_to_read = size if isinstance(size, int) else size.value
 
+    while bytes_to_read != len(buffer):
+        buffer += conn.recv((bytes_to_read - len(buffer)))
 
-@contextlib.contextmanager
-def connection(client: ClientRequest) -> socket:
-    conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn.connect(client.socket)
+    if debug:
+        print(' '.join('{:02x}'.format(x) for x in buffer), end=" ")
 
-    # Yield the connection to be used
-    yield conn
-    # Close the connection
-    conn.close()
+    if isinstance(size, RespHeader):
+        if 1 == bytes_to_read:
+            buffer = struct.unpack("!B", buffer)[0]
+        elif 4 == bytes_to_read:
+            buffer = struct.unpack("!I", buffer)[0]
+        elif 8 == bytes_to_read:
+            buffer = struct.unpack("!Q", buffer)[0]
+
+    return buffer

@@ -12,11 +12,31 @@ import client_sock
 
 def _parse_args(args: list[str]) -> dict:
     """
-    Parse the args provided by the user
+    Parse the user input and raise exceptions when the user:
+        - provides too many arguments
+        - does not fulfill the required arguments
 
-    :param args: List of arguments split from the command line
-    :return: Dictionary of arguments parsed
+    The amount of valid arguments is calculated by fetching the commands
+    args list.
+        Example:
+            "mkdir": {
+                "help": "Makes directory at server [dst]",
+                "args": ["r_dst"],
+                "callback": _mkdir,
+
+    The args list contains the arguments that the command or "callback" takes.
+    If the argument begins with "r_" then the argument is mandatory,
+    otherwise the argument is optional.
+
+    The response dictionary contains the args for the callback with
+    the value set by the use.
+        Example:
+            { "r_dst": "some/path" }
+
+    :param args: List of user input tokens
+    :return: Dictionary containing the
     """
+
     arg_dict = {}
 
     cmd_name = args[0]
@@ -208,6 +228,12 @@ def get_password(msg: str) -> str:
 
 
 def _interact(client: ClientRequest, conn: socket) -> None:
+    """
+    While in a valid session, continuously ask the user for input
+
+    :param client: Initial client request object
+    :param conn: Active socket connection
+    """
     _print_main_menu()
     while True:
         cmd = shlex.split(input("\n> "))
@@ -224,10 +250,17 @@ def _interact(client: ClientRequest, conn: socket) -> None:
 
 
 def shell(client: ClientRequest) -> None:
+    """
+    Drop into an interactive shell with the server
+
+    :param client: Client object holding the initial connection configuration
+    """
     while True:
         client.self_password = get_password("password: ")
         client.set_auth_headers()
         try:
+            # Upon session timeouts the socket will close and the
+            # user will get asked to re-authenticate
             with client_sock.connection(client) as conn:
                 resp = client_sock.connect(client, conn)
                 if not resp.successful:
@@ -255,7 +288,8 @@ CMDS = {
     },
     "put": {
         "help": "Sends a file from client [src] path to be placed in the "
-                "server [dst] path.\n\t  Example: put source_file.txt dest/folder",
+                "server [dst] path.\n\t  Example: put source_file.txt "
+                "dest/folder",
         "args": ["r_src", "r_dst"],
         "callback": _put,
     },

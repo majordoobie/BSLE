@@ -113,8 +113,6 @@ TEST_P(ServerFileApiTest, TestFileMayExist)
     init_test_dir();
 
     auto [parent, child, expected_str, b_expect_resolve, expect_find, expect_may_exist] = GetParam();
-    static int v = 0;
-    v++;
 
     // Cleaup if the tests are over
     if (parent == "NOT_TEST")

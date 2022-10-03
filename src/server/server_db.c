@@ -375,7 +375,7 @@ void db_shutdown(db_t ** pp_db)
 
     // Destroy the db object
     htable_destroy(p_db->users_htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
-    htable_destroy(p_db->sesh_htable, HT_FREE_PTR_FALSE, HT_FREE_PTR_TRUE);
+    htable_destroy(p_db->sesh_htable, HT_FREE_PTR_TRUE, HT_FREE_PTR_FALSE);
     f_destroy_path(&p_db->p_home_dir);
     *p_db = (db_t){
         .users_htable   = NULL,
