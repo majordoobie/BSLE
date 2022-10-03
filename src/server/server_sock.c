@@ -9,10 +9,10 @@ static volatile atomic_flag server_run;
 // a worker_payload_t to maintain its information
 typedef struct
 {
-    db_t *      p_db;
-    uint32_t    timeout;
-    uint32_t    session_id;
     int         fd;
+    db_t *      p_db;
+    uint32_t    session_id;
+    time_t      timeout;
 } worker_payload_t;
 
 static int server_listen(uint32_t serv_port, socklen_t * record_len);
@@ -288,7 +288,7 @@ static void serve_client(void * sock_void)
     worker_payload_t * p_worker = (worker_payload_t *)sock_void;
     struct timeval tv;
     tv.tv_usec = 0;
-    tv.tv_sec = p_worker->timeout;
+    tv.tv_sec = CONNECTION_TIMEOUT;
 
     int str_err = setsockopt(
         p_worker->fd,
@@ -305,37 +305,32 @@ static void serve_client(void * sock_void)
 
     // If we get a null then we know that some kind of error occurred and
     // has been handled
-    wire_payload_t * p_wire = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
-    if (UV_INVALID_ALLOC == verify_alloc(p_wire))
+    wire_payload_t * p_client_req = (wire_payload_t *)calloc(1, sizeof(wire_payload_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_client_req))
     {
         goto ret_null;
     }
-    ret_codes_t result = OP_SUCCESS;
-    for(;;)
+
+    // p_client_req->session_id will receive the session_id from the
+    // client connection. On initial connection, the session is set
+    // to zero from the client and p_worker->session_id will also be 0.
+    ret_codes_t result = read_client_req(p_worker, &p_client_req);
+    if (OP_SUCCESS != result)
     {
-        // p_wire->session_id will receive the session_id from the
-        // client connection. On initial connection, the session is set
-        // to zero from the client and p_worker->session_id will also be 0.
-        result = read_client_req(p_worker, &p_wire);
-        if (OP_SUCCESS != result)
-        {
-            // Key and value are the same pointer so no need to free the
-            // value from htable_del
-            htable_del(p_worker->p_db->sesh_htable,
-                       &p_worker->session_id, HT_FREE_PTR_TRUE);
-            goto ret_null;
-        }
-
-        act_resp_t * resp = ctrl_parse_action(p_worker->p_db, p_wire, &p_worker->session_id);
-        write_response(p_worker, resp);
-
-        // Last value "false" instructs the destroy function to completely
-        // clean out the p_wire object but do not free it so that we
-        // can reuse it. All values are nullified
-        ctrl_destroy(&p_wire, &resp, false);
+        // If error returned (OP_SESSION_ERROR/SOCKET_CLOSED) then
+        // expire the session ID from the database
+        free(htable_del(p_worker->p_db->sesh_htable,
+                   &p_worker->session_id, HT_FREE_PTR_TRUE));
+        goto ret_null;
     }
 
-    ctrl_destroy(&p_wire, NULL, true);
+    act_resp_t * resp = ctrl_parse_action(p_worker->p_db,
+                                          p_client_req,
+                                          &p_worker->session_id,
+                                          p_worker->timeout);
+
+    write_response(p_worker, resp);
+    ctrl_destroy(&p_client_req, &resp, true);
 
 
 ret_null:

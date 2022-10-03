@@ -9,7 +9,7 @@
 
 typedef enum
 {
-    MIN_PORT            = 1024,       // Ports 1024+ are user defined ports
+    MIN_PORT            = 1025,       // Ports 1024+ are user defined ports
     MAX_PORT            = 0xFFFF,
     BACK_LOG            = 1024,
     MIN_USERNAME_LEN    = 3,
@@ -18,8 +18,9 @@ typedef enum
     MAX_MSG_SIZE        = 2048,
     MAX_FILE_SIZE       = 1016,
     DEFAULT_PORT        = 31337,
-    DEFAULT_TIMEOUT     = 10,
-    MAX_TIMEOUT         = 120,     // Max timeout of 2 minutes
+    CONNECTION_TIMEOUT  = 10,      // Socket timeout for a connected socket
+    DEFAULT_TIMEOUT     = 60,      // Session timeout default
+    MAX_TIMEOUT         = 300,     // Max timeout of 5 minutes
 } server_defaults_t;
 
 // header_sizes_t defines the amount of bytes that the field takes in the

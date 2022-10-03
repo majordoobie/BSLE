@@ -21,6 +21,7 @@ static const char * OP_255 = "Server action failed";
 
 
 static const char * get_err_msg(ret_codes_t res);
+static time_t * get_time(void);
 static ret_codes_t generate_session_id(htable_t * htable, uint32_t * p_session);
 static void set_resp(act_resp_t ** pp_resp, ret_codes_t code);
 static ret_codes_t user_action(db_t * p_db, wire_payload_t * p_ld);
@@ -63,7 +64,8 @@ act_resp_t * ctrl_populate_resp(ret_codes_t code)
  */
 act_resp_t * ctrl_parse_action(db_t * p_db,
                                wire_payload_t * p_client_req,
-                               uint32_t * srv_session)
+                               uint32_t * srv_session,
+                               time_t timeout)
 {
     if ((NULL == p_db) || (NULL == p_client_req))
     {
@@ -95,27 +97,35 @@ act_resp_t * ctrl_parse_action(db_t * p_db,
         res = generate_session_id(p_db->sesh_htable, srv_session);
         p_client_req->session_id = *srv_session;
     }
-    // client did not use session, return an invalid session error
-    else if((0 == p_client_req->session_id) && (0 != *srv_session))
-    {
-        res = OP_SESSION_ERROR;
-    }
-    else if(0 != p_client_req->session_id)
+    else
     {
         // Check if the session used by client is a valid session ID
         if (!htable_key_exists(p_db->sesh_htable, &p_client_req->session_id))
         {
             res = OP_SESSION_ERROR;
         }
-        // If the session IS valid, but it is not valid for the current
-        // connection then return a session error as well
-        else if (*srv_session != p_client_req->session_id)
-        {
-            res = OP_SESSION_ERROR;
-        }
         else
         {
-            res = OP_SUCCESS;
+            time_t * session_time = (time_t *)htable_get(p_db->sesh_htable, &p_client_req->session_id);
+            time_t * current_time = get_time();
+            if (NULL == current_time)
+            {
+                res = OP_FAILURE;
+                goto set_resp;
+            }
+
+            // If the elapsed time is greater than the timeout, expire the session
+            if ((*current_time - *session_time) > timeout)
+            {
+                res = OP_SESSION_ERROR;
+                free(htable_del(p_db->sesh_htable, &p_client_req->session_id, HT_FREE_PTR_TRUE));
+            }
+            else
+            {
+                // Update the session time for the session ID
+                *session_time = *current_time;
+            }
+            free(current_time);
         }
     }
 
@@ -598,6 +608,18 @@ static uint32_t gen_session(void)
     return sesh;
 }
 
+static time_t * get_time(void)
+{
+    time_t * p_time = (time_t *)calloc(1, sizeof(time_t));
+    if (UV_INVALID_ALLOC == verify_alloc(p_time))
+    {
+        return NULL;
+    }
+    time(p_time);
+    return p_time;
+
+}
+
 static ret_codes_t generate_session_id(htable_t * htable, uint32_t * p_session)
 {
     uint32_t sesh = gen_session();
@@ -612,7 +634,7 @@ static ret_codes_t generate_session_id(htable_t * htable, uint32_t * p_session)
         return OP_FAILURE;
     }
     *p_key = sesh;
-    htable_set(htable, p_key, p_key);
+    htable_set(htable, p_key, get_time());
 
     *p_session = *p_key;
     return OP_SUCCESS;

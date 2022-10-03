@@ -33,7 +33,7 @@ static htable_match_t db_compare_callback(void * left_key, void * right_key);
 
 static htable_match_t sesh_compare_callback(void * left_key, void * right_key);
 static uint64_t sesh_hash_callback(void * key);
-void sesh_free_key_callback(void * payload);
+void sesh_free_callback(void * payload);
 
 
 /*!
@@ -169,8 +169,8 @@ db_t * db_init(verified_path_t * p_home_dir)
     htable_t * sesh_htable = htable_create(
         sesh_hash_callback,
         sesh_compare_callback,
-        sesh_free_key_callback,
-        NULL);
+        sesh_free_callback,
+        sesh_free_callback);
 
     if (NULL == sesh_htable)
     {
@@ -1024,7 +1024,7 @@ static htable_match_t sesh_compare_callback(void * left_key, void * right_key)
  *
  * @param payload Pointer to the value object stored in the hash table
  */
-void sesh_free_key_callback(void * payload)
+void sesh_free_callback(void * payload)
 {
     if (NULL == payload)
     {

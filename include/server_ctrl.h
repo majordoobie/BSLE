@@ -6,6 +6,7 @@ extern "C" {
 // HEADER GUARD
 #include <stdio.h>
 #include <stdint.h>
+#include <time.h>
 
 #include <server_db.h>
 
@@ -82,7 +83,8 @@ void ctrl_destroy(wire_payload_t ** pp_payload,
  */
 act_resp_t * ctrl_parse_action(db_t * p_db,
                                wire_payload_t * p_client_req,
-                               uint32_t * srv_session);
+                               uint32_t * srv_session,
+                               time_t timeout);
 
 act_resp_t * ctrl_populate_resp(ret_codes_t code);
 
