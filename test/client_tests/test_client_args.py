@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from src.client import client_cli
+from src.client import client_classes
 
 
 class TestArgParser(unittest.TestCase):
@@ -27,13 +27,13 @@ class TestArgParser(unittest.TestCase):
     def _test_valid(self):
         """Function is used to verify that the modified args are valid. This
         is called from the individual test cases that SHOULD work"""
-        obj = cli_parser.ClientRequest(**self.args)
-        self.assertIsInstance(obj, cli_parser.ClientRequest)
+        obj = client_classes.ClientRequest(**self.args)
+        self.assertIsInstance(obj, client_classes.ClientRequest)
 
     def test_no_options(self):
         """Test failure when no action is provided"""
         with self.assertRaises(ValueError):
-            cli_parser.ClientRequest(**self.args)
+            client_classes.ClientRequest(**self.args)
 
     def test_multi_actions(self):
         """Test failure when multiple actions are provided"""
@@ -41,7 +41,7 @@ class TestArgParser(unittest.TestCase):
         self.args["put"] = True
 
         with self.assertRaises(ValueError):
-            cli_parser.ClientRequest(**self.args)
+            client_classes.ClientRequest(**self.args)
 
     def test_zero_dependency_actions(self):
         """Test functions that require no dependency"""
@@ -100,9 +100,9 @@ class TestArgParser(unittest.TestCase):
 
         # Error because missing --perm
         with self.assertRaises(ValueError):
-            cli_parser.ClientRequest(**self.args)
+            client_classes.ClientRequest(**self.args)
 
-        self.args["perm"] = cli_parser.UserPerm["READ"]
+        self.args["perm"] = client_classes.UserPerm["READ"]
         self._test_valid()
 
 

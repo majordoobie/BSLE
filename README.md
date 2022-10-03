@@ -1,76 +1,72 @@
-# TL;DR
-Just run the following and the script will handle everything for you
+# File Transfer App
+## Table of Content
+1. [How To Compile](#1)
+2. [How To Run Server](#2)
+3. [How To Run Client](#3)
+4. [Headers](#4)
+
+
+
+## How To Compile <a name="1"></a>
+The builder script `builder.py` can be used to build the project and even 
+run the unit test for you.
+
+To compile and run all unit tests
 ```bash
 python3 builder.py --run-all
 ```
-
-# How to compile
-You compile the whole project with:
+Or to build/rebuild the project
 ```bash
+# Via script
 python3 builder.py --build
-```
 
-Or manually with:
-```bash
+# Manually
 cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build
 cmake --build build -j $(nproc)
 ```
-# Run all unit test
-Use the provided python script to choose the tests you would like to run
 
+## How To Run Server <a name="2"></a>
+The binary is placed in the `${CWD}/bin`
 ```bash
-# Run all tests
-python3 builder.py -r
+➜ ./bin/server -h
+Start up a file transfer server and server up the files located in the home directory which 
+is specified by the -d argument. All operations must first be authenticated. 
+Once authenticated a session ID is assigned to the connection until the connection 
+terminates or the session times out. After which the user must re-authenticate.
 
-# Or manually with
-ctest -j $(nproc) --test-dir build/ -R '^DBUserActions'
-ctest -j 1 --test-dir build/ -E '^DBUserActions'
+options:
+        -t      Session timeout in seconds (default: 10s)
+        -p      Port number to listen on (default: 31337)
+        -d      Home directory of the server. Path must have read and write permissions.
+
+
+➜ ./bin/server -t 60 -d test/server
 ```
 
-To run a specific test, first list the tests and use the name to run 
-the test you are looking for
-```bash
-$ python3 builder.py -l 
+## How To Run Client <a name="3"></a>
+The client script is stored in `${CWD}/src/client/client_main.py` 
 
-gtest_server_args
-gtest_server_db
-gtest_server_crypto
-gtest_server_file_api
+The client has an indepth help menu that you can invoke with `${CWD}/src/client/client_main.py -h`.
+Additionally, the robust input validation will let you know when you are missing arguments.
+
+### Some Examples
+```bash
+# Drop into shell mode
+python3 src/client/client_main.py -U "admin" --shell
+
+# Create a new user
+python3 src/client/client_main.py -U "admin" --create_user "new_user" --perm READ_WRITE
+
+# List a directory
+python3 src/client/client_main.py -U "admin" --ls --dst "/"
 ```
 
-The use the name to run the test
-```bash
-$ python3 builder.py -t gtest_server_crypto 
 
-[==========] Running 7 tests from 2 test suites.
-[----------] Global test environment set-up.
-[----------] 1 test from TestMatchingFunc
-[ RUN      ] TestMatchingFunc.TestMatch
-[       OK ] TestMatchingFunc.TestMatch (3 ms)
-[----------] 1 test from TestMatchingFunc (3 ms total)
+## Headers <a name="4"></a>
+The headers below follow the wire protocol with additional portions
+added at the end as a "payload"
 
-[----------] 6 tests from HashTests/ServerCryptoHashTest
-[ RUN      ] HashTests/ServerCryptoHashTest.TestValidPorts/0
-[       OK ] HashTests/ServerCryptoHashTest.TestValidPorts/0 (0 ms)
-[ RUN      ] HashTests/ServerCryptoHashTest.TestValidPorts/1
-[       OK ] HashTests/ServerCryptoHashTest.TestValidPorts/1 (0 ms)
-[ RUN      ] HashTests/ServerCryptoHashTest.TestValidPorts/2
-[       OK ] HashTests/ServerCryptoHashTest.TestValidPorts/2 (0 ms)
-[ RUN      ] HashTests/ServerCryptoHashTest.TestValidPorts/3
-[       OK ] HashTests/ServerCryptoHashTest.TestValidPorts/3 (0 ms)
-[ RUN      ] HashTests/ServerCryptoHashTest.TestValidPorts/4
-[       OK ] HashTests/ServerCryptoHashTest.TestValidPorts/4 (0 ms)
-[ RUN      ] HashTests/ServerCryptoHashTest.TestValidPorts/5
-[       OK ] HashTests/ServerCryptoHashTest.TestValidPorts/5 (0 ms)
-[----------] 6 tests from HashTests/ServerCryptoHashTest (0 ms total)
-
-[----------] Global test environment tear-down
-[==========] 7 tests from 2 test suites ran. (3 ms total)
-[  PASSED  ] 7 tests.
-```
-
-# Headers
-## Legend
+### Legend
 
 | Symbol      | Description                   |
 |-------------|-------------------------------|
@@ -78,12 +74,11 @@ $ python3 builder.py -t gtest_server_crypto
 | \*\*LABEL** | Field is of variable length   |
 | \~LABEL\~   | Next header segment           |
 
-## Client Request Header
+### Client Request Header
 > Note that all `FILE_DATA_STREAM` are prepended with a 32 byte hash of 
-> the file. The file length then becomes `PAYLOAD_LEN - 32`
-> 
-> The `FILE_DATA_STREAM` is also limited to 1016 bytes per payload so once
-> the section is hit, you must start to account for the MTU size of 1016
+> the file. The file length then becomes `PAYLOAD_LEN - 32`. The hash 
+> is used to validate that the data stream has not been modified through
+> transfer. 
 
 ```
    0               1               2               3   
@@ -104,7 +99,7 @@ $ python3 builder.py -t gtest_server_crypto
    |                ~user_payload || std_payload~                  |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
-## Client Request Std Payload
+#### Client Request: Std Payload
 To indicate that there is a file data stream (Only occurs during REMOTE PUT command)
 `(PAYLOAD_LEN - PATH_LEN) > 0`
 ```
@@ -116,7 +111,7 @@ To indicate that there is a file data stream (Only occurs during REMOTE PUT comm
    |                     **FILE_DATA_STREAM**                      |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
-##  Client Request User Payload
+####  Client Request: User Payload
 To indicate that there is a password field (Only occurs during user creation)
 `(PAYLOAD_LEN - (USR_ACT_FLAG + PERMISSION + USERNAME_LEN)) > 0`
 ```
@@ -128,7 +123,9 @@ To indicate that there is a password field (Only occurs during user creation)
    | **USERNAME**  |         PASSWORD_LEN          | **PASSWORD**  |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
-## Server Response
+### Server Response
+Every response will have a `MSG` describing the response even if it 
+was a successful interaction.
 ```
    0               1               2               3   
    0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
@@ -143,34 +140,4 @@ To indicate that there is a password field (Only occurs during user creation)
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                    **FILE_DATA_STREAM**                       |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```
-
-```c
-typedef struct
-{
-    db_t * p_db;
-    uint32_t timeout;
-    uint32_t session_id; // Maintains the session through the whole connection per thread
-    int fd;
-} worker_payload_t;
-
-typedef struct
-{
-    act_t           opt_code;       // 1 byte
-    usr_act_t       user_flag;      // 1 byte
-    uint16_t        _reserved;
-    uint16_t        username_len;
-    uint16_t        passwd_len;
-    uint32_t        session_id;
-    char *          p_username;
-    char *          p_passwd;
-    uint64_t        payload_len;  // Size of everything but wire header
-
-    payload_type_t type;
-    union
-    {
-        std_payload_t *  p_std_payload;
-        user_payload_t * p_user_payload;
-    };
-} wire_payload_t;
 ```
