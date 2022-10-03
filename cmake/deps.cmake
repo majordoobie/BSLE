@@ -24,10 +24,10 @@ ENDIF()
 FetchContent_Declare(
         c_dsa
         GIT_REPOSITORY https://github.com/majordoobie/c_abstract_data_types.git
-        GIT_TAG 9c2bf21dcdd1b46742c5ea0ce6600f6fc6c145c2
+        GIT_TAG b888f3eeca9be30f12bf19143dbc548636de8552
 )
 
-# disable building c_dsa gtests
+# disable building c_dsa gtestss
 set(BUILD_DSA_C_GTESTS OFF CACHE BOOL "" FORCE)
 
 # Make available then include
