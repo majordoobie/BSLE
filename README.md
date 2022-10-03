@@ -7,7 +7,7 @@
 4. [Headers](#4)
 
 
-## Summary <a name="5"</a/>
+## Summary <a name="5"></a>
 The server listens on the specified port for a connection. As soon as a connection is made to 
 the server, the server will enqueue the connection received into the thread pools job queue.
 Once the job is dequeued, an available thread will handle the connection with the client. The 
