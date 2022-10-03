@@ -64,7 +64,6 @@ act_resp_t * ctrl_populate_resp(ret_codes_t code)
  */
 act_resp_t * ctrl_parse_action(db_t * p_db,
                                wire_payload_t * p_client_req,
-                               uint32_t * srv_session,
                                time_t timeout)
 {
     if ((NULL == p_db) || (NULL == p_client_req))
@@ -92,16 +91,17 @@ act_resp_t * ctrl_parse_action(db_t * p_db,
     }
 
     // The session is brand new, attempt to authenticate and generate session
-    if ((0 == p_client_req->session_id) && (0 == *srv_session))
+    if (0 == p_client_req->session_id)
     {
-        res = generate_session_id(p_db->sesh_htable, srv_session);
-        p_client_req->session_id = *srv_session;
+        res = generate_session_id(p_db->sesh_htable, &p_client_req->session_id);
+        debug_print("[WORKER - CTRL] Generating new session ID for client: %u\n", p_client_req->session_id);
     }
     else
     {
         // Check if the session used by client is a valid session ID
         if (!htable_key_exists(p_db->sesh_htable, &p_client_req->session_id))
         {
+            debug_print("[WORKER - CTRL] Client session [%u] is no longer active\n", p_client_req->session_id);
             res = OP_SESSION_ERROR;
         }
         else
@@ -117,12 +117,14 @@ act_resp_t * ctrl_parse_action(db_t * p_db,
             // If the elapsed time is greater than the timeout, expire the session
             if ((*current_time - *session_time) > timeout)
             {
+                debug_print("[WORKER - CTRL] Session [%u] has expired\n", p_client_req->session_id);
                 res = OP_SESSION_ERROR;
                 free(htable_del(p_db->sesh_htable, &p_client_req->session_id, HT_FREE_PTR_TRUE));
             }
             else
             {
                 // Update the session time for the session ID
+                debug_print("[WORKER - CTRL] Updated [%u] session\n", p_client_req->session_id);
                 *session_time = *current_time;
             }
             free(current_time);
@@ -271,7 +273,7 @@ static void do_get_file(db_t * p_db, wire_payload_t * p_ld, act_resp_t ** pp_res
     }
     else
     {
-        debug_print("[~] Read %ld from %s\n", p_content->stream_size, p_content->p_path);
+        debug_print("[WORKER - CTRL] Read %ld from %s\n", p_content->stream_size, p_content->p_path);
         set_resp(pp_resp, OP_SUCCESS);
         (*pp_resp)->p_content = p_content;
     }
@@ -315,7 +317,7 @@ static void do_list_dir(db_t * p_db,
     }
     else
     {
-        debug_print("[~] Read dir listing of %ld from %s\n",
+        debug_print("[WORKER - CTRL] Read dir listing of %ld from %s\n",
                     p_content->stream_size, p_content->p_path);
         set_resp(pp_resp, OP_SUCCESS);
         (*pp_resp)->p_content = p_content;
@@ -350,7 +352,7 @@ static ret_codes_t do_put_file(db_t * p_db, wire_payload_t * p_ld)
                                    p_std->p_byte_stream,
                                    p_std->byte_stream_len);
 
-    debug_print("[~] Wrote %ld to %s\n", p_std->byte_stream_len, p_std->p_path);
+    debug_print("[WORKER - CTRL] Wrote %ld to %s\n", p_std->byte_stream_len, p_std->p_path);
 
     f_destroy_path(&p_path);
     return ret;
@@ -377,7 +379,7 @@ static ret_codes_t do_make_dir(db_t * p_db, wire_payload_t * p_ld)
     {
         char repr[PATH_MAX] = {0};
         f_path_repr(p_path, repr, PATH_MAX);
-        debug_print("[~] Created %s\n", repr);
+        debug_print("[WORKER - CTRL] Created %s\n", repr);
     }
     f_destroy_path(&p_path);
     return ret;
@@ -403,7 +405,7 @@ static ret_codes_t do_del_file(db_t * p_db, wire_payload_t * p_ld)
     {
         char repr[PATH_MAX] = {0};
         f_path_repr(p_path, repr, PATH_MAX);
-        debug_print("[~] Deleted %s\n", repr);
+        debug_print("[WORKER - CTRL] Deleted %s\n", repr);
     }
     f_destroy_path(&p_path);
     return ret;

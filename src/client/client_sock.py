@@ -7,25 +7,12 @@ from client_classes import ClientRequest, RespHeader, ServerResponse, \
     SUCCESS_RESPONSE
 
 
-@contextlib.contextmanager
-def connection(client: ClientRequest) -> socket:
-    """Context manager for keeping the socket open until the interactive
-    session is complete"""
-    conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn.connect(client.socket)
-
-    # Yield the connection to be used
-    yield conn
-    # Close the connection
-    conn.close()
-
-
-def make_connection(args: ClientRequest) -> ServerResponse:
+def make_connection(client: ClientRequest) -> ServerResponse:
     """Make a single connection and close the socket. This is used for
     the CLI"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
-        conn.connect(args.socket)
-        resp = connect(args, conn)
+        conn.connect(client.socket)
+        resp = connect(client, conn)
     return resp
 
 

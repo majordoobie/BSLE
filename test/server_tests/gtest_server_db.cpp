@@ -262,7 +262,6 @@ TEST_F(DBUserActions, TestUserAction_BadAuth)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload1,
-                                          0,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_USER_AUTH);
@@ -275,7 +274,6 @@ TEST_F(DBUserActions, TestUserAction_CreateUserBadPerm)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload1,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
@@ -289,7 +287,6 @@ TEST_F(DBUserActions, TestUserAction_CreateUserExists)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload1,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_USER_EXISTS);
@@ -302,7 +299,6 @@ TEST_F(DBUserActions, TestUserAction_DeleteUserNoPerm)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload1,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
@@ -317,7 +313,6 @@ TEST_F(DBUserActions, TestUserAction_DeleteUserNotExist)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload2,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_USER_NO_EXIST);
@@ -330,7 +325,6 @@ TEST_F(DBUserActions, TestUserAction_DeleteUser)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload2,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);
@@ -346,7 +340,6 @@ TEST_F(DBUserActions, TestUserAction_ListDirectoryErrorNotExist)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload3,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_RESOLVE_ERROR);
@@ -362,7 +355,6 @@ TEST_F(DBUserActions, TestUserAction_ListDirectoryError)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload3,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PATH_NOT_DIR);
@@ -378,7 +370,6 @@ TEST_F(DBUserActions, TestUserAction_ListDirectory)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload3,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);
@@ -392,7 +383,6 @@ TEST_F(DBUserActions, TestUserAction_GetFile)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload3,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);
@@ -409,7 +399,6 @@ TEST_F(DBUserActions, TestUserAction_GetFileNotFile)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload3,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PATH_NOT_FILE);
@@ -425,7 +414,6 @@ TEST_F(DBUserActions, TestUserAction_GetFileError)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload3,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_RESOLVE_ERROR);
@@ -438,7 +426,6 @@ TEST_F(DBUserActions, TestUserAction_PutFilePermError)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload3,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
@@ -451,7 +438,6 @@ TEST_F(DBUserActions, TestUserAction_PutFileFileExists)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload4,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_FILE_EXISTS);
@@ -467,7 +453,6 @@ TEST_F(DBUserActions, TestUserAction_PutFile)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload4,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);
@@ -480,7 +465,6 @@ TEST_F(DBUserActions, TestUserAction_MakeDirPermError)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload3,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_PERMISSION_ERROR);
@@ -493,7 +477,6 @@ TEST_F(DBUserActions, TestUserAction_MakeDirFileExits)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload4,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_DIR_EXISTS);
@@ -509,7 +492,6 @@ TEST_F(DBUserActions, TestUserAction_MakeDirErrorResolve)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload4,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_RESOLVE_ERROR);
@@ -525,7 +507,6 @@ TEST_F(DBUserActions, TestUserAction_MakeDir)
 
     act_resp_t * resp = ctrl_parse_action(this->user_db,
                                           this->payload4,
-                                          &this->session,
                                           20);
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->result, OP_SUCCESS);

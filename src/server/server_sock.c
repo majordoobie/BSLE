@@ -320,14 +320,13 @@ static void serve_client(void * sock_void)
         // If error returned (OP_SESSION_ERROR/SOCKET_CLOSED) then
         // expire the session ID from the database
         free(htable_del(p_worker->p_db->sesh_htable,
-                   &p_worker->session_id, HT_FREE_PTR_TRUE));
+                   &p_client_req->session_id, HT_FREE_PTR_TRUE));
         goto ret_null;
     }
-
     act_resp_t * resp = ctrl_parse_action(p_worker->p_db,
                                           p_client_req,
-                                          &p_worker->session_id,
                                           p_worker->timeout);
+    p_worker->session_id = p_client_req->session_id;
 
     write_response(p_worker, resp);
     ctrl_destroy(&p_client_req, &resp, true);
@@ -894,13 +893,13 @@ static ret_codes_t read_stream(int fd, void * payload, size_t bytes_to_read)
             }
             else
             {
-                debug_print_err("[STREAM READ] Unable to read from fd: %s\n", strerror(errno));
+                debug_print_err("[WORKER - READ] Unable to read from fd: %s\n", strerror(errno));
             }
             goto clean_buffers;
         }
         else if (0 == read_bytes)
         {
-            debug_print_err("%s\n", "[STREAM READ] Read zero bytes. Client likely closed connection.");
+            debug_print_err("%s\n", "[WORKER - READ] Read zero bytes. Client likely closed connection.");
             res = OP_SOCK_CLOSED;
             goto clean_buffers;
         }

@@ -64,7 +64,7 @@ def _parse_args(args: list[str]) -> dict:
     return arg_dict
 
 
-def _get(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _get(client: ClientRequest, args: list[str]) -> None:
     try:
         cmd_args = _parse_args(args)
     except ValueError as error:
@@ -74,11 +74,11 @@ def _get(client: ClientRequest, conn: socket, args: list[str]) -> None:
     dst = cmd_args.get("r_dst")
     src = cmd_args.get("r_src")
     client.set_get(dst, Path(src))
-    resp = client_sock.connect(client, conn)
+    resp = client_sock.make_connection(client)
     client_ctrl.parse_action(resp)
 
 
-def _put(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _put(client: ClientRequest, args: list[str]) -> None:
     try:
         cmd_args = _parse_args(args)
     except ValueError as error:
@@ -88,11 +88,11 @@ def _put(client: ClientRequest, conn: socket, args: list[str]) -> None:
     dst = cmd_args.get("r_dst")
     src = cmd_args.get("r_src")
     client.set_put(dst, Path(src))
-    resp = client_sock.connect(client, conn)
+    resp = client_sock.make_connection(client)
     client_ctrl.parse_action(resp)
 
 
-def _delete(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _delete(client: ClientRequest, args: list[str]) -> None:
     try:
         cmd_args = _parse_args(args)
     except ValueError as error:
@@ -101,11 +101,11 @@ def _delete(client: ClientRequest, conn: socket, args: list[str]) -> None:
 
     dst = cmd_args.get("r_dst")
     client.set_delete(dst)
-    resp = client_sock.connect(client, conn)
+    resp = client_sock.make_connection(client)
     client_ctrl.parse_action(resp)
 
 
-def _l_delete(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _l_delete(client: ClientRequest, args: list[str]) -> None:
     try:
         cmd_args = _parse_args(args)
     except ValueError as error:
@@ -116,7 +116,7 @@ def _l_delete(client: ClientRequest, conn: socket, args: list[str]) -> None:
     client_ctrl.do_ldelete(client)
 
 
-def _ls(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _ls(client: ClientRequest, args: list[str]) -> None:
     try:
         cmd_args = _parse_args(args)
     except ValueError as error:
@@ -126,11 +126,11 @@ def _ls(client: ClientRequest, conn: socket, args: list[str]) -> None:
     dst = cmd_args.get("dst")
     dst = dst if dst else "/"
     client.set_ls(dst)
-    resp = client_sock.connect(client, conn)
+    resp = client_sock.make_connection(client)
     client_ctrl.parse_action(resp)
 
 
-def _l_ls(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _l_ls(client: ClientRequest, args: list[str]) -> None:
     try:
         cmd_args = _parse_args(args)
     except ValueError as error:
@@ -143,7 +143,7 @@ def _l_ls(client: ClientRequest, conn: socket, args: list[str]) -> None:
     client_ctrl.do_list_ldir(client)
 
 
-def _mkdir(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _mkdir(client: ClientRequest, args: list[str]) -> None:
     try:
         cmd_args = _parse_args(args)
     except ValueError as error:
@@ -152,11 +152,11 @@ def _mkdir(client: ClientRequest, conn: socket, args: list[str]) -> None:
 
     dst = cmd_args.get("r_dst")
     client.set_mkdir(dst)
-    resp = client_sock.connect(client, conn)
+    resp = client_sock.make_connection(client)
     client_ctrl.parse_action(resp)
 
 
-def _l_mkdir(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _l_mkdir(client: ClientRequest, args: list[str]) -> None:
     try:
         cmd_args = _parse_args(args)
     except ValueError as error:
@@ -169,7 +169,7 @@ def _l_mkdir(client: ClientRequest, conn: socket, args: list[str]) -> None:
     return
 
 
-def _help(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _help(client: ClientRequest, args: list[str]) -> None:
     if len(args) > 2:
         print(f"[!] Too many arguments for command. Use help {args[0]} "
               f"for more guidance")
@@ -212,7 +212,7 @@ def _help(client: ClientRequest, conn: socket, args: list[str]) -> None:
             )
 
 
-def _quit(client: ClientRequest, conn: socket, args: list[str]) -> None:
+def _quit(*args) -> None:
     exit()
 
 
@@ -227,12 +227,11 @@ def get_password(msg: str) -> str:
     return getpass.getpass(msg)
 
 
-def _interact(client: ClientRequest, conn: socket) -> None:
+def _interact(client: ClientRequest) -> None:
     """
     While in a valid session, continuously ask the user for input
 
     :param client: Initial client request object
-    :param conn: Active socket connection
     """
     _print_main_menu()
     while True:
@@ -244,7 +243,7 @@ def _interact(client: ClientRequest, conn: socket) -> None:
                       "commands.")
             else:
                 callback = CMDS.get(cmd[0])
-                callback.get("callback")(client, conn, cmd)
+                callback.get("callback")(client, cmd)
         else:
             print()
 
@@ -261,17 +260,21 @@ def shell(client: ClientRequest) -> None:
         try:
             # Upon session timeouts the socket will close and the
             # user will get asked to re-authenticate
-            with client_sock.connection(client) as conn:
-                resp = client_sock.connect(client, conn)
-                if not resp.successful:
-                    exit(f"[!] {resp.msg}")
-                client.session = resp.session_id
-                _interact(client, conn)
+            resp = client_sock.make_connection(client)
+            if not resp.successful:
+                exit(f"[!] {resp.msg}")
+            client.session = resp.session_id
+            _interact(client)
+
+        # Occurs when the active connection times out (10 seconds)
         except TimeoutError:
+            print("Got a timeout")
             client.session = 0
             pass
         except KeyboardInterrupt:
             exit("later")
+        except Exception as error:
+            exit(error)
 
 
 ARGS = {
