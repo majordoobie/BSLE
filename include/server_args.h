@@ -20,12 +20,12 @@ extern "C" {
 typedef struct
 {
     uint32_t            port;
-    uint32_t            timeout;
+    uint8_t             timeout;
     verified_path_t *   p_home_directory;
 } args_t;
 
-void free_args(args_t ** pp_args);
-args_t * parse_args(int argc, char ** argv);
+void args_destroy(args_t ** pp_args);
+args_t * args_parse(int argc, char ** argv);
 
 // HEADER GUARD
 #ifdef __cplusplus

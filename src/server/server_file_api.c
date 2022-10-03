@@ -453,9 +453,13 @@ ret_null:
  * @param p_read_mode Mode to open the verified_path_t object with
  * @return File object or NULL if the path cannot be opened
  */
-FILE * f_open_file(verified_path_t * p_path, const char * p_read_mode)
+ret_codes_t f_open_file(verified_path_t * p_path,
+                        const char * p_read_mode,
+                        FILE ** hh_handle)
 {
-    if ((NULL == p_path) || (NULL == p_read_mode) || (NULL == p_path->p_path))
+    if ((NULL == p_path) || (NULL == p_read_mode)
+                         || (NULL == p_path->p_path)
+                         || (NULL == hh_handle))
     {
         goto ret_null;
     }
@@ -463,14 +467,19 @@ FILE * f_open_file(verified_path_t * p_path, const char * p_read_mode)
     FILE * h_file = fopen(p_path->p_path, p_read_mode);
     if (NULL == h_file)
     {
+        if (ENOTDIR == errno)
+        {
+            return OP_PATH_NOT_FILE;
+        }
         perror("fopen");
         goto ret_null;
     }
 
-    return h_file;
+    *hh_handle = h_file;
+    return OP_SUCCESS;
 
 ret_null:
-    return NULL;
+    return OP_FAILURE;
 }
 
 /*!
@@ -489,11 +498,13 @@ ret_codes_t f_write_file(verified_path_t * p_path,
     {
         goto ret_null;
     }
+    ret_codes_t result = OP_FAILURE;
 
-    FILE * h_path = f_open_file(p_path, "w");
-    if (NULL == h_path) // Message printed already
+    FILE * h_path = NULL;
+    result = f_open_file(p_path, "w", &h_path);
+    if (OP_SUCCESS != result) // Message printed already
     {
-        goto ret_null;
+        return result;
     }
 
     size_t write = fwrite(p_stream, sizeof(uint8_t), stream_size, h_path);
@@ -503,7 +514,6 @@ ret_codes_t f_write_file(verified_path_t * p_path,
                 p_path->p_path);
         goto cleanup;
     }
-
     fclose(h_path);
     return OP_SUCCESS;
 
@@ -545,8 +555,9 @@ file_content_t * f_read_file(verified_path_t * p_path, ret_codes_t * p_code)
         goto ret_null;
     }
 
-    FILE * h_path = f_open_file(p_path, "r");
-    if (NULL == h_path)
+    FILE * h_path = NULL;
+    ret_codes_t res = f_open_file(p_path, "r", &h_path);
+    if (OP_SUCCESS != res)
     {
         fprintf(stderr, "[!] Could not open the %s file for "
                         "reading\n", p_path->p_path);

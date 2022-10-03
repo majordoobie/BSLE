@@ -7,7 +7,7 @@
 extern "C"
 {
     uint32_t get_port(char * port);
-    uint32_t get_timeout(char * timeout);
+    uint8_t get_timeout(char * timeout);
 }
 
 class ServerTestValidPorts : public ::testing::TestWithParam<std::tuple<std::string, bool>>{};
@@ -86,7 +86,7 @@ TEST_P(ServerCmdTester, TestingServerArguments)
     }
 
     // Call the test function
-    args_t * args = parse_args(arg_count, argv);
+    args_t * args = args_parse(arg_count, argv);
     if (expect_failure)
     {
         EXPECT_EQ(args, nullptr);
@@ -103,7 +103,7 @@ TEST_P(ServerCmdTester, TestingServerArguments)
         delete [] argv[i];
     }
     delete [] argv;
-    free_args(&args);
+    args_destroy(& args);
 }
 
 INSTANTIATE_TEST_SUITE_P(

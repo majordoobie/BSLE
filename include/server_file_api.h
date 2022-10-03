@@ -123,7 +123,9 @@ void f_destroy_path(verified_path_t ** pp_path);
  * @param p_read_mode Mode to open the verified_path_t object with
  * @return File object or NULL if the path cannot be opened
  */
-FILE * f_open_file(verified_path_t * p_path, const char * p_read_mode);
+ret_codes_t f_open_file(verified_path_t * p_path,
+                   const char * p_read_mode,
+                   FILE ** hh_handle);
 
 /*!
  * @brief Destroy the file_content_t object

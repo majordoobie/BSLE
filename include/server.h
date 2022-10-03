@@ -15,8 +15,34 @@ typedef enum
     MIN_USERNAME_LEN    = 3,
     MIN_PASSWD_LEN      = 6,
     MAX_PASSWD_LEN      = 32,
+    MAX_MSG_SIZE        = 2048,
+    MAX_FILE_SIZE       = 1016,
+    DEFAULT_PORT        = 31337,
+    DEFAULT_TIMEOUT     = 10,
+    MAX_TIMEOUT         = 120,     // Max timeout of 2 minutes
 } server_defaults_t;
 
+// header_sizes_t defines the amount of bytes that the field takes in the
+// header
+typedef enum
+{
+    H_OPCODE            = 1, // The user action to take
+    H_USER_FLAG         = 1,
+    H_REQ_RESERVED      = 2,
+    H_RESP_RESERVED     = 1,
+    H_USERNAME_LEN      = 2,
+    H_PASSWORD_LEN      = 2,
+    H_SESSION_ID        = 4,
+    H_PAYLOAD_LEN       = 8, // The total size of the payload not including the wire header
+    H_PATH_LEN          = 2, // Len of characters in the path
+    H_USR_ACT_FLAG      = 1, // User action subset for creating/delete users
+    H_USR_PERMISSION    = 1, // Permission of the new user during creation
+    H_RETURN_CODE       = 1, // ret_codes_t
+    H_MSG_LEN           = 1, // The length of the response message
+    H_HASH_LEN          = SHA256_DIGEST_LENGTH,
+} header_sizes_t;
+
+// Descriptions found in server_ctrl.c (barrc prohibits storage allocation in header)
 typedef enum
 {
     OP_SUCCESS             = 1,
@@ -31,6 +57,10 @@ typedef enum
     OP_PATH_NOT_DIR        = 10,
     OP_PATH_NOT_FILE       = 11,
     OP_DIR_EXISTS          = 12,
+    OP_SOCK_CLOSED         = 13,
+    OP_USER_NO_EXIST       = 14,
+    OP_FILE_EMPTY          = 15,
+    OP_DIR_EMPTY           = 16,
     OP_IO_ERROR            = 254,
     OP_FAILURE             = 255
 } ret_codes_t;
@@ -43,19 +73,15 @@ typedef enum
     ACT_GET_REMOTE_FILE         = 4,
     ACT_MAKE_REMOTE_DIRECTORY   = 5,
     ACT_PUT_REMOTE_FILE         = 6,
+    ACT_LOCAL_OPERATION         = 7
 } act_t;
 
 typedef enum
 {
-    USR_ACT_CREATE_USER         = 1,
-    USR_ACT_DELETE_USER         = 2
+    USR_ACT_CREATE_USER         = 10,
+    USR_ACT_DELETE_USER         = 20
 } usr_act_t;
 
-typedef enum
-{
-    DEFAULT_PORT    = 31337,
-    DEFAULT_TIMEOUT = 10,
-} args_default_t;
 
 typedef enum
 {

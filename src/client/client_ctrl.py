@@ -1,10 +1,15 @@
 from dataclasses import dataclass
+from typing import Union
 
-from cli_parser import get_args, ActionType, ClientAction
+from client_classes import ClientRequest, ActionType
+from client_sock import ServerResponse
+
+SESSION_ERROR = 2
 
 
 @dataclass
 class DirList:
+    """Data class handles formatting the directory listing"""
     f_type: str
     _size: int
     f_name: str
@@ -22,24 +27,30 @@ class DirList:
             self._size /= 1024.0
 
 
-def _do_list_ldir(args: ClientAction) -> None:
+def do_list_ldir(args: ClientRequest) -> None:
     contents = ""
-    for file in args.src.iterdir():
+    for file in args._src.iterdir():
         # Only ready file and dirs
         if file.is_file() or file.is_dir():
             _type = "[F]" if file.is_file() else "[D]"
             contents += f"{_type}:{file.stat().st_size}:{file.name}\n"
-
     _parse_dir(contents)
 
 
-def _parse_dir(array: str) -> None:
+def _parse_dir(array: Union[str, bytes]) -> None:
     """
     Break the stream of characters that represents the directory listing
     and format it to print to the screen.
 
     :param array: String array in the format of `f_type:f_size:f_name\n`
     """
+    if not array:
+        print("[!] Directory is empty")
+        return
+
+    if isinstance(array, bytes):
+        array = array.decode(encoding="utf-8")
+
     dir_objs = []
     for file in array.split("\n"):
         if "" == file:
@@ -52,12 +63,12 @@ def _parse_dir(array: str) -> None:
 
     dir_objs.sort(key=lambda x: (x.f_type, -x._size))
     for i in dir_objs:
-        print(f"{i.f_type} {i.f_size:>4} {i.f_name}")
+        print(f"{i.f_type} {i.f_size:>6} {i.f_name}")
 
 
-def _do_lmkdir(args: ClientAction) -> None:
+def do_lmkdir(args: ClientRequest) -> None:
     try:
-        args.src.mkdir()
+        args._src.mkdir()
         print("[+] Create directory")
     except FileNotFoundError:
         print("[!] Path is missing parent directories. Make those directories "
@@ -68,13 +79,13 @@ def _do_lmkdir(args: ClientAction) -> None:
         print(f"[!] {error}")
 
 
-def _do_ldelete(args: ClientAction) -> None:
+def do_ldelete(args: ClientRequest) -> None:
     try:
-        if args.src.is_file():
-            args.src.unlink()
+        if args._src.is_file():
+            args._src.unlink()
             print("[!] Deleted file")
         else:
-            args.src.rmdir()
+            args._src.rmdir()
             print("[!] Deleted directory")
 
     except FileNotFoundError:
@@ -83,22 +94,38 @@ def _do_ldelete(args: ClientAction) -> None:
         print(f"[!] {error}")
 
 
-def main() -> None:
-    args = None
-    try:
-        args = get_args()
-    except Exception as error:
-        exit(error)
+def parse_action(resp: ServerResponse) -> None:
+    """Parse the server response to perform actions"""
+    if not resp.successful:
+        print(f"[!] {resp.msg}")
+        if SESSION_ERROR == resp.return_code:
+            raise TimeoutError("Session has expired")
+        return
 
-    if ActionType.L_LS == args.action:
-        _do_list_ldir(args)
+    if ActionType.LS == resp.action:
+        if resp.valid_hash:
+            _parse_dir(resp.payload)
 
-    elif ActionType.L_MKDIR == args.action:
-        _do_lmkdir(args)
+    elif resp.action in [ActionType.MKDIR, ActionType.PUT,
+                         ActionType.DELETE, ActionType.USER_OP]:
+        print(f"[+] {resp.msg}")
 
-    elif ActionType.L_DELETE == args.action:
-        _do_ldelete(args)
+    elif ActionType.GET == resp.action:
+        print(f"[~] {resp.save_file()}")
+
+    elif ActionType.L_LS == resp.action:
+        do_list_ldir(resp.request)
+
+    elif ActionType.L_MKDIR == resp.action:
+        do_lmkdir(resp.request)
+
+    elif ActionType.L_DELETE == resp.action:
+        do_ldelete(resp.request)
 
 
-if __name__ == "__main__":
-    main()
+
+
+
+
+
+

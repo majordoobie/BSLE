@@ -83,7 +83,8 @@ TEST_P(ServerFileApiTest, TestFileJoining)
             EXPECT_EQ(0, strcmp(expected_str.c_str(), p_path->p_path));
 
 
-            FILE * h_file = f_open_file(p_path, "r");
+            FILE * h_file = NULL;
+            f_open_file(p_path, "r", &h_file);
 
             if (expect_find)
             {
@@ -112,8 +113,6 @@ TEST_P(ServerFileApiTest, TestFileMayExist)
     init_test_dir();
 
     auto [parent, child, expected_str, b_expect_resolve, expect_find, expect_may_exist] = GetParam();
-    static int v = 0;
-    v++;
 
     // Cleaup if the tests are over
     if (parent == "NOT_TEST")
